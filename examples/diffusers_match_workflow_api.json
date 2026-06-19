@@ -30,8 +30,8 @@
   "5": {
     "class_type": "DualCLIPLoader",
     "inputs": {
-      "clip_name1": "waiIllustriousSDXL_v160_clip_l.safetensors",
-      "clip_name2": "waiIllustriousSDXL_v160_clip_g.safetensors",
+      "clip_name1": "waiIllustriousSDXL_v140_clip_l.safetensors",
+      "clip_name2": "waiIllustriousSDXL_v140_clip_g.safetensors",
       "type": "sdxl",
       "device": "cpu"
     }
@@ -49,13 +49,11 @@
       ],
       "prompt": "1girl, kisaki (blue archive), eating baozi, sitting, indoors",
       "negative_prompt": "",
-      "guidance": 5.0,
+      "guidance": 0,
       "use_guidance_embedding": false,
       "base_text_tokens": 200,
-      "negative_text_tokens": 512,
       "extra_text_tokens": 77,
-      "positive_qwen_layers": "10,20,30",
-      "negative_qwen_layers": "9,18,27",
+      "qwen_layers": "10,20,30",
       "sdxl_clip_width": 2048
     }
   },

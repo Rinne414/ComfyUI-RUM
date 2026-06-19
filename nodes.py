@@ -229,10 +229,8 @@ class RUMFlux2NativeMatchTextEncode:
                 "guidance": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                 "use_guidance_embedding": ("BOOLEAN", {"default": False}),
                 "base_text_tokens": ("INT", {"default": 200, "min": 1, "max": 4096, "step": 1}),
-                "negative_text_tokens": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
                 "extra_text_tokens": ("INT", {"default": 77, "min": 1, "max": 512, "step": 1}),
-                "positive_qwen_layers": ("STRING", {"default": "10,20,30", "multiline": False}),
-                "negative_qwen_layers": ("STRING", {"default": "9,18,27", "multiline": False}),
+                "qwen_layers": ("STRING", {"default": "10,20,30", "multiline": False}),
                 "sdxl_clip_width": ("INT", {"default": 2048, "min": 1, "max": 8192, "step": 1}),
             }
         }
@@ -246,6 +244,40 @@ class RUMFlux2NativeMatchTextEncode:
     def IS_CHANGED(cls, *args, **kwargs):
         return float("nan")
 
+    def _encode(
+        self,
+        qwen_clip,
+        sdxl_clip,
+        prompt: str,
+        guidance: float,
+        use_guidance_embedding: bool,
+        base_text_tokens: int,
+        extra_text_tokens: int,
+        qwen_layers: str,
+        sdxl_clip_width: int,
+    ):
+        from .rum_native import combine_rum_conditioning, encode_comfy_qwen3_hf_semantics, encode_comfy_sdxl_hf_semantics
+
+        positive_qwen = encode_comfy_qwen3_hf_semantics(
+            qwen_clip,
+            prompt,
+            max_sequence_length=base_text_tokens,
+            hidden_states_layers=_parse_layers(qwen_layers),
+        )
+
+        positive_sdxl = encode_comfy_sdxl_hf_semantics(sdxl_clip, prompt)
+
+        emb = combine_rum_conditioning(
+            positive_qwen,
+            positive_sdxl,
+            guidance=guidance if use_guidance_embedding else None,
+            base_text_tokens=base_text_tokens,
+            extra_text_tokens=extra_text_tokens,
+            sdxl_clip_width=sdxl_clip_width,
+            use_sdxl_extra=True,
+        )
+        return emb
+
     def encode(
         self,
         qwen_clip,
@@ -255,51 +287,19 @@ class RUMFlux2NativeMatchTextEncode:
         guidance: float,
         use_guidance_embedding: bool,
         base_text_tokens: int,
-        negative_text_tokens: int,
         extra_text_tokens: int,
-        positive_qwen_layers: str,
-        negative_qwen_layers: str,
+        qwen_layers: str,
         sdxl_clip_width: int,
     ):
-        from .rum_native import combine_rum_conditioning, encode_comfy_qwen3_hf_semantics, encode_comfy_sdxl_hf_semantics
-
-        positive_layers = _parse_layers(positive_qwen_layers)
-        positive_qwen = encode_comfy_qwen3_hf_semantics(
-            qwen_clip,
-            prompt,
-            max_sequence_length=base_text_tokens,
-            hidden_states_layers=positive_layers,
-        )
-
-        positive_sdxl = encode_comfy_sdxl_hf_semantics(sdxl_clip, prompt)
-
-        positive = combine_rum_conditioning(
-            positive_qwen,
-            positive_sdxl,
-            guidance=guidance if use_guidance_embedding else None,
-            base_text_tokens=base_text_tokens,
-            extra_text_tokens=extra_text_tokens,
-            sdxl_clip_width=sdxl_clip_width,
-            use_sdxl_extra=True,
-        )
-
-        negative_layers = _parse_layers(negative_qwen_layers)
-        negative = encode_comfy_qwen3_hf_semantics(
-            qwen_clip,
-            negative_prompt,
-            max_sequence_length=negative_text_tokens,
-            hidden_states_layers=negative_layers,
-        )
-        negative = [[cond[:, :negative_text_tokens], meta.copy()] for cond, meta in negative]
-
+        positive = self._encode(qwen_clip=qwen_clip, sdxl_clip=sdxl_clip, prompt=prompt, guidance=guidance, use_guidance_embedding=use_guidance_embedding, base_text_tokens=base_text_tokens, extra_text_tokens=extra_text_tokens, qwen_layers=qwen_layers, sdxl_clip_width=sdxl_clip_width)
+        negative = self._encode(qwen_clip=qwen_clip, sdxl_clip=sdxl_clip, prompt=negative_prompt, guidance=guidance, use_guidance_embedding=use_guidance_embedding, base_text_tokens=base_text_tokens, extra_text_tokens=extra_text_tokens, qwen_layers=qwen_layers, sdxl_clip_width=sdxl_clip_width)
         return (
             positive,
             negative,
             "Native match text 已编码："
-            f"pos={base_text_tokens}+{extra_text_tokens} layers={','.join(map(str, positive_layers))}; "
-            f"neg={negative_text_tokens} layers={','.join(map(str, negative_layers))}",
+            f"pos={base_text_tokens}+{extra_text_tokens}; "
+            f"neg={base_text_tokens}+{extra_text_tokens}; ",
         )
-
 
 class RUMFlux2SetQwenLayers:
     @classmethod

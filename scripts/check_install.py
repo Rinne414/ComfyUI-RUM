@@ -19,8 +19,8 @@ EXPECTED_MODELS = {
         "qwen_3_4b.safetensors",
         "clip_l.safetensors",
         "clip_g.safetensors",
-        "waiIllustriousSDXL_v160_clip_l.safetensors",
-        "waiIllustriousSDXL_v160_clip_g.safetensors",
+        "waiIllustriousSDXL_v140_clip_l.safetensors",
+        "waiIllustriousSDXL_v140_clip_g.safetensors",
     ],
     "vae": ["flux2-vae.safetensors"],
 }
@@ -28,8 +28,8 @@ EXPECTED_MODELS = {
 OPTIONAL_WORKFLOW_FILES = {
     "normal native workflow": ["clip_l.safetensors", "clip_g.safetensors"],
     "diffusers-match workflow": [
-        "waiIllustriousSDXL_v160_clip_l.safetensors",
-        "waiIllustriousSDXL_v160_clip_g.safetensors",
+        "waiIllustriousSDXL_v140_clip_l.safetensors",
+        "waiIllustriousSDXL_v140_clip_g.safetensors",
     ],
 }
 

@@ -60,17 +60,17 @@ GENERIC_SDXL_CLIP_FILES = [
 TEACHER_SDXL_CLIP_FILES = [
     {
         "label": "Diffusers-match SDXL teacher CLIP-L text encoder",
-        "repo": "Ine007/waiIllustriousSDXL_v160",
+        "repo": "Ine007/waiIllustriousSDXL_v140",
         "filename": "text_encoder/model.safetensors",
         "folder": "text_encoders",
-        "target": "waiIllustriousSDXL_v160_clip_l.safetensors",
+        "target": "waiIllustriousSDXL_v140_clip_l.safetensors",
     },
     {
         "label": "Diffusers-match SDXL teacher CLIP-G text encoder",
-        "repo": "Ine007/waiIllustriousSDXL_v160",
+        "repo": "Ine007/waiIllustriousSDXL_v140",
         "filename": "text_encoder_2/model.safetensors",
         "folder": "text_encoders",
-        "target": "waiIllustriousSDXL_v160_clip_g.safetensors",
+        "target": "waiIllustriousSDXL_v140_clip_g.safetensors",
     },
 ]
 
@@ -110,7 +110,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-teacher-clip",
         action="store_true",
-        help="Also download waiIllustriousSDXL_v160 CLIP files used by the diffusers-match sample workflow.",
+        help="Also download waiIllustriousSDXL_v140 CLIP files used by the diffusers-match sample workflow.",
     )
     parser.add_argument(
         "--all",
@@ -154,7 +154,7 @@ def print_workflow_hint(args: argparse.Namespace) -> None:
     if args.include_teacher_clip or args.all:
         print(
             "- examples/diffusers_match_workflow*.json can use "
-            "waiIllustriousSDXL_v160_clip_l.safetensors + waiIllustriousSDXL_v160_clip_g.safetensors."
+            "waiIllustriousSDXL_v140_clip_l.safetensors + waiIllustriousSDXL_v140_clip_g.safetensors."
         )
     else:
         print("- For examples/diffusers_match_workflow*.json, rerun with --include-teacher-clip.")

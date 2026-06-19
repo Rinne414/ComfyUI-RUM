@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
         default=default_comfy_root,
         help="ComfyUI root directory. Default: inferred from custom_nodes/ComfyUI-RUM/scripts.",
     )
-    parser.add_argument("--prefix", default="waiIllustriousSDXL_v160", help="Output filename prefix.")
+    parser.add_argument("--prefix", default="waiIllustriousSDXL_v140", help="Output filename prefix.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files.")
     return parser.parse_args()
 
