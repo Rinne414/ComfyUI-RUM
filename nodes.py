@@ -241,8 +241,14 @@ class RUMFlux2NativeMatchTextEncode:
     CATEGORY = "RUM/native"
 
     @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return float("nan")
+    def IS_CHANGED(cls, qwen_clip, sdxl_clip, prompt, negative_prompt, guidance,
+                   use_guidance_embedding, base_text_tokens, negative_text_tokens,
+                   extra_text_tokens, positive_qwen_layers, negative_qwen_layers,
+                   sdxl_clip_width):
+        # 返回輸入參數的 hash，只有參數變化時才重新執行
+        return hash((prompt, negative_prompt, guidance, use_guidance_embedding,
+                     base_text_tokens, negative_text_tokens, extra_text_tokens,
+                     positive_qwen_layers, negative_qwen_layers, sdxl_clip_width))
 
     def _encode(
         self,
