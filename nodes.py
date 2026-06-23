@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 def _diffusion_model_list():
-    try:
-        import folder_paths
+    import folder_paths
 
-        names = folder_paths.get_filename_list("diffusion_models")
-        return names if names else ["put_rum_checkpoint_in_models_diffusion_models.safetensors"]
-    except Exception:
-        return ["put_rum_checkpoint_in_models_diffusion_models.safetensors"]
+    names = folder_paths.get_filename_list("diffusion_models")
+    return names if names else ["put_rum_checkpoint_in_models_diffusion_models.safetensors"]
 
 
 class RUMFlux2LoadNativeModel:
@@ -321,7 +318,7 @@ class RUMFlux2SetQwenLayers:
 
     @classmethod
     def IS_CHANGED(cls, clip, layers: str):
-        return float("nan")
+        return hash(str(layers))
 
     def set_layers(self, clip, layers: str):
         patched, parsed = _clone_qwen_clip_with_layers(clip, layers)

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import math
 
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from nodes import RUMFlux2NativeMatchTextEncode, RUMFlux2SetQwenLayers
 from rum_native import (
     RUMDiffusersMatchTokenPolicy,
     append_reference_tokens,
@@ -187,3 +189,22 @@ def test_sdxl_teacher_dtype_validation_rejects_integer_dtype():
         assert "FP16/BF16/FP32" in str(exc)
     else:
         raise AssertionError("Expected integer teacher dtype to fail.")
+
+
+def test_set_qwen_layers_cache_key_is_stable_and_not_nan():
+    first = RUMFlux2SetQwenLayers.IS_CHANGED(None, "10,20,30")
+    second = RUMFlux2SetQwenLayers.IS_CHANGED(None, "10,20,30")
+    changed = RUMFlux2SetQwenLayers.IS_CHANGED(None, "9,18,27")
+
+    assert not (isinstance(first, float) and math.isnan(first))
+    assert first == second
+    assert first != changed
+
+
+def test_native_match_text_cache_key_tracks_text_parameters():
+    first = RUMFlux2NativeMatchTextEncode.IS_CHANGED(None, None, "a", "", 0.0, False, 200, 77, 2048, "10,20,30")
+    changed_prompt = RUMFlux2NativeMatchTextEncode.IS_CHANGED(None, None, "b", "", 0.0, False, 200, 77, 2048, "10,20,30")
+    changed_layers = RUMFlux2NativeMatchTextEncode.IS_CHANGED(None, None, "a", "", 0.0, False, 200, 77, 2048, "9,18,27")
+
+    assert first != changed_prompt
+    assert first != changed_layers
