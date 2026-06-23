@@ -192,6 +192,20 @@ python scripts/check_install.py --comfy-root /path/to/ComfyUI
 
 `DualCLIPLoader` 使用 flat `.safetensors` 文件；exact text encode 会从同名前缀的 `*_clip_l_dir` 和 `*_clip_g_dir` HF 目录加载 `transformers` 模型。`scripts/download_models.py --include-teacher-clip` 会同时准备这两套文件。
 
+## 测试
+
+本仓库的轻量单元测试不下载模型，也不启动 ComfyUI：
+
+```bash
+python -m pytest -q
+```
+
+要检查本机 ComfyUI 环境、节点加载和模型可见性：
+
+```bash
+python scripts/check_install.py --comfy-root /path/to/ComfyUI
+```
+
 ## 安装
 
 把仓库放到 ComfyUI 的 custom nodes：
@@ -447,6 +461,20 @@ python scripts/check_install.py --comfy-root /path/to/ComfyUI
 ```
 
 `DualCLIPLoader` uses the flat `.safetensors` files; exact text encoding loads `transformers` models from the matching `*_clip_l_dir` and `*_clip_g_dir` HF folders. `scripts/download_models.py --include-teacher-clip` prepares both layouts.
+
+## Tests
+
+The lightweight unit tests do not download models or start ComfyUI:
+
+```bash
+python -m pytest -q
+```
+
+To check the local ComfyUI environment, node imports, and model visibility:
+
+```bash
+python scripts/check_install.py --comfy-root /path/to/ComfyUI
+```
 
 
 ## Install

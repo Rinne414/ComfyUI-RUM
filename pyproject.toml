@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-rum"
-version = "0.2.6"
+version = "0.2.7"
 description = "Native ComfyUI adapter nodes for RUM FLUX.2-Klein with extra SDXL CLIP conditioning."
 requires-python = ">=3.10"
 readme = "README.md"
@@ -24,3 +24,6 @@ Documentation = "https://github.com/peter119lee/ComfyUI-RUM#readme"
 [tool.comfy]
 PublisherId = "peter119lee"
 DisplayName = "RUM FLUX.2-Klein Native"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

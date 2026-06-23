@@ -1,10 +1,37 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 def _diffusion_model_list():
     import folder_paths
 
     names = folder_paths.get_filename_list("diffusion_models")
     return names if names else ["put_rum_checkpoint_in_models_diffusion_models.safetensors"]
+
+
+def _validate_rum_checkpoint_override_path(rum_checkpoint_path: str) -> str:
+    raw_path = rum_checkpoint_path.strip().strip("\"'")
+    checkpoint = Path(raw_path).expanduser()
+    if not checkpoint.is_absolute():
+        raise ValueError(f"RUM checkpoint override path 必须是绝对路径，当前值：{rum_checkpoint_path!r}。")
+    try:
+        resolved = checkpoint.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"RUM checkpoint override path 不存在或无法访问：{rum_checkpoint_path!r}。") from exc
+    if not resolved.is_file():
+        raise ValueError(f"RUM checkpoint override path 必须指向文件：{str(resolved)!r}。")
+    if resolved.suffix.lower() != ".safetensors":
+        raise ValueError(f"RUM checkpoint override path 必须是 .safetensors 文件：{str(resolved)!r}。")
+    return str(resolved)
+
+
+def _resolve_rum_checkpoint_path(rum_checkpoint_name: str, rum_checkpoint_path: str) -> str:
+    import folder_paths
+
+    checkpoint = rum_checkpoint_path.strip()
+    if checkpoint:
+        return _validate_rum_checkpoint_override_path(checkpoint)
+    return folder_paths.get_full_path_or_raise("diffusion_models", rum_checkpoint_name)
 
 
 class RUMFlux2LoadNativeModel:
@@ -21,7 +48,7 @@ class RUMFlux2LoadNativeModel:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "可选：填写绝对路径时会覆盖 rum_checkpoint_name。推荐直接选择 BF16 RUM checkpoint。",
+                        "tooltip": "可选：填写现有 .safetensors 文件的绝对路径时会覆盖 rum_checkpoint_name。推荐直接选择 BF16 RUM checkpoint。",
                     },
                 ),
             },
@@ -33,14 +60,9 @@ class RUMFlux2LoadNativeModel:
     CATEGORY = "RUM/native"
 
     def load_model(self, rum_checkpoint_name: str, base_text_tokens: int, rum_checkpoint_path: str = ""):
-        import folder_paths
-
         from .rum_native import load_rum_native_model
 
-        checkpoint = rum_checkpoint_path.strip()
-        if not checkpoint:
-            checkpoint = folder_paths.get_full_path_or_raise("diffusion_models", rum_checkpoint_name)
-
+        checkpoint = _resolve_rum_checkpoint_path(rum_checkpoint_name, rum_checkpoint_path)
         model, count, resolved = load_rum_native_model(checkpoint, base_text_tokens=base_text_tokens)
         return (model, f"RUM native BF16 MODEL 已加载：{count} 个权重；base={base_text_tokens}；checkpoint={resolved}")
 
@@ -61,7 +83,7 @@ class RUMFlux2ApplyModelPatch:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "可选：填写绝对路径时会覆盖 rum_checkpoint_name。",
+                        "tooltip": "可选：填写现有 .safetensors 文件的绝对路径时会覆盖 rum_checkpoint_name。",
                     },
                 ),
             },
@@ -73,14 +95,9 @@ class RUMFlux2ApplyModelPatch:
     CATEGORY = "RUM/native"
 
     def apply_patch(self, model, rum_checkpoint_name: str, base_text_tokens: int, strict: bool, rum_checkpoint_path: str = ""):
-        import folder_paths
-
         from .rum_native import apply_rum_model_patch
 
-        checkpoint = rum_checkpoint_path.strip()
-        if not checkpoint:
-            checkpoint = folder_paths.get_full_path_or_raise("diffusion_models", rum_checkpoint_name)
-
+        checkpoint = _resolve_rum_checkpoint_path(rum_checkpoint_name, rum_checkpoint_path)
         patched, count, resolved = apply_rum_model_patch(
             model,
             checkpoint,

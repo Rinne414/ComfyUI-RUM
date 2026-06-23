@@ -8,7 +8,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from nodes import RUMFlux2NativeMatchTextEncode, RUMFlux2SetQwenLayers
+from nodes import RUMFlux2NativeMatchTextEncode, RUMFlux2SetQwenLayers, _validate_rum_checkpoint_override_path
 from rum_native import (
     RUMDiffusersMatchTokenPolicy,
     append_reference_tokens,
@@ -208,3 +208,33 @@ def test_native_match_text_cache_key_tracks_text_parameters():
 
     assert first != changed_prompt
     assert first != changed_layers
+
+
+def test_checkpoint_override_path_validation_accepts_existing_safetensors(tmp_path: Path):
+    checkpoint = tmp_path / "rum.safetensors"
+    checkpoint.write_bytes(b"")
+
+    resolved = _validate_rum_checkpoint_override_path(str(checkpoint))
+
+    assert resolved == str(checkpoint.resolve())
+
+
+def test_checkpoint_override_path_validation_rejects_relative_path():
+    try:
+        _validate_rum_checkpoint_override_path("model-checkpoint-1158000.safetensors")
+    except ValueError as exc:
+        assert "绝对路径" in str(exc)
+    else:
+        raise AssertionError("Expected relative checkpoint override path to fail.")
+
+
+def test_checkpoint_override_path_validation_rejects_non_safetensors(tmp_path: Path):
+    checkpoint = tmp_path / "rum.bin"
+    checkpoint.write_bytes(b"")
+
+    try:
+        _validate_rum_checkpoint_override_path(str(checkpoint))
+    except ValueError as exc:
+        assert ".safetensors" in str(exc)
+    else:
+        raise AssertionError("Expected non-safetensors checkpoint override path to fail.")
