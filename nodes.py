@@ -230,8 +230,8 @@ class RUMFlux2NativeMatchTextEncode:
                 "use_guidance_embedding": ("BOOLEAN", {"default": False}),
                 "base_text_tokens": ("INT", {"default": 200, "min": 1, "max": 4096, "step": 1}),
                 "extra_text_tokens": ("INT", {"default": 77, "min": 1, "max": 512, "step": 1}),
-                "qwen_layers": ("STRING", {"default": "10,20,30", "multiline": False}),
                 "sdxl_clip_width": ("INT", {"default": 2048, "min": 1, "max": 8192, "step": 1}),
+                "qwen_layers": ("STRING", {"default": "10,20,30", "multiline": False}),
             }
         }
 
@@ -242,13 +242,10 @@ class RUMFlux2NativeMatchTextEncode:
 
     @classmethod
     def IS_CHANGED(cls, qwen_clip, sdxl_clip, prompt, negative_prompt, guidance,
-                   use_guidance_embedding, base_text_tokens, negative_text_tokens,
-                   extra_text_tokens, positive_qwen_layers, negative_qwen_layers,
-                   sdxl_clip_width):
-        # 返回輸入參數的 hash，只有參數變化時才重新執行
+                   use_guidance_embedding, base_text_tokens, extra_text_tokens,
+                   sdxl_clip_width, qwen_layers):
         return hash((prompt, negative_prompt, guidance, use_guidance_embedding,
-                     base_text_tokens, negative_text_tokens, extra_text_tokens,
-                     positive_qwen_layers, negative_qwen_layers, sdxl_clip_width))
+                     base_text_tokens, extra_text_tokens, qwen_layers, sdxl_clip_width))
 
     def _encode(
         self,
@@ -259,8 +256,8 @@ class RUMFlux2NativeMatchTextEncode:
         use_guidance_embedding: bool,
         base_text_tokens: int,
         extra_text_tokens: int,
-        qwen_layers: str,
         sdxl_clip_width: int,
+        qwen_layers: str,
     ):
         from .rum_native import combine_rum_conditioning, encode_comfy_qwen3_hf_semantics, encode_comfy_sdxl_hf_semantics
 
@@ -294,8 +291,8 @@ class RUMFlux2NativeMatchTextEncode:
         use_guidance_embedding: bool,
         base_text_tokens: int,
         extra_text_tokens: int,
-        qwen_layers: str,
         sdxl_clip_width: int,
+        qwen_layers: str,
     ):
         positive = self._encode(qwen_clip=qwen_clip, sdxl_clip=sdxl_clip, prompt=prompt, guidance=guidance, use_guidance_embedding=use_guidance_embedding, base_text_tokens=base_text_tokens, extra_text_tokens=extra_text_tokens, qwen_layers=qwen_layers, sdxl_clip_width=sdxl_clip_width)
         negative = self._encode(qwen_clip=qwen_clip, sdxl_clip=sdxl_clip, prompt=negative_prompt, guidance=guidance, use_guidance_embedding=use_guidance_embedding, base_text_tokens=base_text_tokens, extra_text_tokens=extra_text_tokens, qwen_layers=qwen_layers, sdxl_clip_width=sdxl_clip_width)
@@ -454,6 +451,27 @@ class RUMFlux2NativeMatchVAEDecode:
         return (decode_flux2_native_match_vae_latent(vae, samples),)
 
 
+class RUMFlux2NativeMatchReferenceEncode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "vae": ("VAE",),
+            }
+        }
+
+    RETURN_TYPES = ("RUM_REFERENCE_LATENTS", "STRING")
+    RETURN_NAMES = ("reference_latents", "status")
+    FUNCTION = "encode"
+    CATEGORY = "RUM/native"
+
+    def encode(self, image, vae):
+        from .rum_native import encode_flux2_native_match_reference_image
+
+        return encode_flux2_native_match_reference_image(vae, image)
+
+
 class RUMFlux2DiffusersCFGuider:
     @classmethod
     def INPUT_TYPES(cls):
@@ -463,6 +481,9 @@ class RUMFlux2DiffusersCFGuider:
                 "positive": ("CONDITIONING",),
                 "negative": ("CONDITIONING",),
                 "cfg": ("FLOAT", {"default": 5.0, "min": 1.0, "max": 100.0, "step": 0.1}),
+            },
+            "optional": {
+                "reference_latents": ("RUM_REFERENCE_LATENTS",),
             }
         }
 
@@ -471,10 +492,10 @@ class RUMFlux2DiffusersCFGuider:
     FUNCTION = "get_guider"
     CATEGORY = "RUM/native"
 
-    def get_guider(self, model, positive, negative, cfg: float):
+    def get_guider(self, model, positive, negative, cfg: float, reference_latents=None):
         from .rum_native import create_diffusers_cfg_guider
 
-        return (create_diffusers_cfg_guider(model, positive, negative, cfg),)
+        return (create_diffusers_cfg_guider(model, positive, negative, cfg, reference_latents),)
 
 
 class RUMFlux2DiffusersMatchModelPatch:
@@ -524,6 +545,7 @@ NODE_CLASS_MAPPINGS = {
     "RUMRoundImageForSave": RUMRoundImageForSave,
     "RUMFlux2DiffusersCFGuider": RUMFlux2DiffusersCFGuider,
     "RUMFlux2NativeMatchVAEDecode": RUMFlux2NativeMatchVAEDecode,
+    "RUMFlux2NativeMatchReferenceEncode": RUMFlux2NativeMatchReferenceEncode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -540,4 +562,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "RUMRoundImageForSave": "RUM Round Image For Save",
     "RUMFlux2DiffusersCFGuider": "RUM FLUX.2 Diffusers CFG Guider",
     "RUMFlux2NativeMatchVAEDecode": "RUM FLUX.2 Native Match VAE Decode",
+    "RUMFlux2NativeMatchReferenceEncode": "RUM FLUX.2 Native Match Reference Encode",
 }

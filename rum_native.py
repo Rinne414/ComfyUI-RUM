@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import math
 from contextlib import contextmanager
 from pathlib import Path
 from types import MethodType
@@ -102,6 +103,7 @@ def combine_rum_conditioning(
             meta["guidance"] = float(guidance)
         meta["rum_base_text_tokens"] = int(flux_base.shape[1])
         meta["rum_extra_text_tokens"] = int(sdxl_extra.shape[1])
+        meta["pooled_output"] = flux_base.new_zeros((flux_base.shape[0], flux_base.shape[-1])).to(dtype=torch.float32)
         meta.pop("attention_mask", None)
         output.append([combined, meta])
     return output
@@ -160,10 +162,12 @@ class RUMDiffusersMatchExtraConds:
         token_policy: RUMDiffusersMatchTokenPolicy,
         *,
         disable_guidance: bool,
+        reference_latents=None,
     ):
         self.original_extra_conds = original_extra_conds
         self.token_policy = token_policy
         self.disable_guidance = bool(disable_guidance)
+        self.reference_latents = reference_latents
 
     def __call__(self, **kwargs):
         output = self.original_extra_conds(**kwargs)
@@ -189,7 +193,29 @@ class RUMDiffusersMatchExtraConds:
 
         output = output.copy()
         output["c_crossattn"] = comfy.conds.CONDRegular(selected)
+        if self.reference_latents is not None:
+            output["rum_reference_latents"] = RUMReferenceLatentsCond(self.reference_latents)
         return output
+
+
+class RUMReferenceLatentsCond:
+    def __init__(self, reference_latents):
+        self.reference_latents = reference_latents
+
+    def process_cond(self, batch_size, **kwargs):
+        return self
+
+    def can_concat(self, other):
+        return False
+
+    def concat(self, others):
+        raise ValueError("RUM reference latents 不支持 concat；请使用单个全图 conditioning。")
+
+    def size(self):
+        latents = self.reference_latents.get("latents") if isinstance(self.reference_latents, dict) else None
+        if not isinstance(latents, list):
+            return [1]
+        return [sum(int(latent.numel()) for latent in latents)]
 
 
 def apply_diffusers_match_model_wrapper(
@@ -250,6 +276,18 @@ def _diffusers_rms_norm(tensor: torch.Tensor, weight: torch.Tensor, eps: float =
     return F.rms_norm(tensor, (tensor.shape[-1],), weight, eps)
 
 
+def _rms_norm_weight(module: nn.Module) -> torch.Tensor:
+    weight = getattr(module, "weight", None)
+    if torch.is_tensor(weight):
+        return weight
+
+    scale = getattr(module, "scale", None)
+    if torch.is_tensor(scale):
+        return scale
+
+    raise AttributeError(f"RUM diffusers-match expected RMSNorm weight/scale on {type(module).__name__}.")
+
+
 def _diffusers_native_attention(
     query: torch.Tensor,
     key: torch.Tensor,
@@ -277,6 +315,272 @@ def _diffusers_native_attention(
             is_causal=False,
         )
     return output.permute(0, 2, 1, 3)
+
+
+def patchify_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
+    if latents.ndim != 4:
+        raise ValueError(f"FLUX.2 latent 必须是 4D tensor，当前形状是 {tuple(latents.shape)}。")
+    batch_size, channels, height, width = latents.shape
+    if height % 2 != 0 or width % 2 != 0:
+        raise ValueError(f"FLUX.2 latent 高宽必须能被 2 整除，当前形状是 {tuple(latents.shape)}。")
+    latents = latents.reshape(batch_size, channels, height // 2, 2, width // 2, 2)
+    latents = latents.permute(0, 1, 3, 5, 2, 4)
+    return latents.reshape(batch_size, channels * 4, height // 2, width // 2)
+
+
+def unpatchify_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
+    if latents.ndim != 4:
+        raise ValueError(f"FLUX.2 patchified latent 必须是 4D tensor，当前形状是 {tuple(latents.shape)}。")
+    batch_size, channels, height, width = latents.shape
+    if channels % 4 != 0:
+        raise ValueError(f"FLUX.2 patchified latent channel 必须能被 4 整除，当前形状是 {tuple(latents.shape)}。")
+    latents = latents.reshape(batch_size, channels // 4, 2, 2, height, width)
+    latents = latents.permute(0, 1, 4, 2, 5, 3)
+    return latents.reshape(batch_size, channels // 4, height * 2, width * 2)
+
+
+def pack_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
+    if latents.ndim != 4:
+        raise ValueError(f"FLUX.2 latent pack 需要 4D tensor，当前形状是 {tuple(latents.shape)}。")
+    batch_size, channels, height, width = latents.shape
+    return latents.reshape(batch_size, channels, height * width).permute(0, 2, 1)
+
+
+def prepare_diffusers_latent_ids(
+    latents: torch.Tensor,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    if latents.ndim != 4:
+        raise ValueError(f"FLUX.2 latent ids 需要 4D tensor，当前形状是 {tuple(latents.shape)}。")
+    batch_size, _, height, width = latents.shape
+    t = torch.arange(1)
+    h = torch.arange(height)
+    w = torch.arange(width)
+    l = torch.arange(1)
+    latent_ids = torch.cartesian_prod(t, h, w, l)
+    return latent_ids.unsqueeze(0).expand(batch_size, -1, -1).to(device=device, dtype=dtype)
+
+
+def prepare_diffusers_text_ids(
+    batch_size: int,
+    token_count: int,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    if batch_size <= 0:
+        raise ValueError("FLUX.2 text ids batch_size 必须大于 0。")
+    if token_count <= 0:
+        raise ValueError("FLUX.2 text ids token_count 必须大于 0。")
+    text_ids = torch.zeros((int(batch_size), int(token_count), 4), device=device, dtype=dtype)
+    text_ids[:, :, 3] = torch.arange(int(token_count), device=device, dtype=dtype)
+    return text_ids
+
+
+def prepare_diffusers_reference_image_ids(
+    reference_latents: list[torch.Tensor],
+    *,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    if not isinstance(reference_latents, list):
+        raise ValueError(f"RUM reference_latents 必须是 list，当前类型是 {type(reference_latents)}。")
+    if len(reference_latents) == 0:
+        raise ValueError("RUM reference_latents 至少需要 1 张参考图 latent。")
+    if batch_size <= 0:
+        raise ValueError("RUM reference_latents batch_size 必须大于 0。")
+
+    image_ids = []
+    for index, latent in enumerate(reference_latents):
+        if latent.ndim != 4:
+            raise ValueError(f"RUM reference latent 必须是 4D tensor，当前形状是 {tuple(latent.shape)}。")
+        if latent.shape[0] != 1:
+            raise ValueError(f"RUM reference latent 单项 batch 必须为 1，当前形状是 {tuple(latent.shape)}。")
+        _, _, height, width = latent.shape
+        t = torch.tensor([10 * (index + 1)])
+        ids = torch.cartesian_prod(t, torch.arange(height), torch.arange(width), torch.arange(1))
+        image_ids.append(ids)
+
+    combined = torch.cat(image_ids, dim=0).unsqueeze(0)
+    return combined.expand(int(batch_size), -1, -1).to(device=device, dtype=dtype)
+
+
+def pack_rum_reference_latents(
+    reference_latents,
+    *,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    latents = validate_rum_reference_latents(reference_latents)
+
+    packed_latents = []
+    normalized_latents = []
+    for latent in latents:
+        current = latent.to(device=device, dtype=dtype)
+        normalized_latents.append(current)
+        packed_latents.append(pack_flux2_latents(current).squeeze(0))
+
+    reference_tokens = torch.cat(packed_latents, dim=0).unsqueeze(0).expand(int(batch_size), -1, -1)
+    reference_ids = prepare_diffusers_reference_image_ids(
+        normalized_latents,
+        batch_size=int(batch_size),
+        device=device,
+        dtype=torch.float32,
+    )
+    return reference_tokens, reference_ids
+
+
+def append_reference_tokens(
+    denoise_tokens: torch.Tensor,
+    denoise_ids: torch.Tensor,
+    reference_tokens: torch.Tensor | None,
+    reference_ids: torch.Tensor | None,
+) -> tuple[torch.Tensor, torch.Tensor, int]:
+    if denoise_tokens.ndim != 3:
+        raise ValueError(f"denoise tokens 必须是 3D tensor，当前形状是 {tuple(denoise_tokens.shape)}。")
+    if denoise_ids.ndim != 3:
+        raise ValueError(f"denoise ids 必须是 3D tensor，当前形状是 {tuple(denoise_ids.shape)}。")
+    denoise_token_count = int(denoise_tokens.shape[1])
+    if reference_tokens is None and reference_ids is None:
+        return denoise_tokens, denoise_ids, denoise_token_count
+    if reference_tokens is None or reference_ids is None:
+        raise ValueError("RUM reference tokens 和 ids 必须同时提供。")
+    if reference_tokens.ndim != 3 or reference_ids.ndim != 3:
+        raise ValueError(
+            "RUM reference tokens/ids 必须是 3D tensor："
+            f"tokens={tuple(reference_tokens.shape)}, ids={tuple(reference_ids.shape)}。"
+        )
+    if denoise_tokens.shape[0] != reference_tokens.shape[0] or denoise_ids.shape[0] != reference_ids.shape[0]:
+        raise ValueError(
+            "RUM reference batch 与 denoise batch 不一致："
+            f"denoise={tuple(denoise_tokens.shape)}, reference={tuple(reference_tokens.shape)}。"
+        )
+    if denoise_tokens.shape[2] != reference_tokens.shape[2]:
+        raise ValueError(
+            "RUM reference channel 与 denoise channel 不一致："
+            f"denoise={tuple(denoise_tokens.shape)}, reference={tuple(reference_tokens.shape)}。"
+        )
+    if denoise_ids.shape[2] != reference_ids.shape[2]:
+        raise ValueError(
+            "RUM reference id 维度与 denoise id 维度不一致："
+            f"denoise={tuple(denoise_ids.shape)}, reference={tuple(reference_ids.shape)}。"
+        )
+    return (
+        torch.cat([denoise_tokens, reference_tokens], dim=1),
+        torch.cat([denoise_ids, reference_ids], dim=1),
+        denoise_token_count,
+    )
+
+
+def crop_noise_to_latent_tokens(noise_pred: torch.Tensor, latent_token_count: int) -> torch.Tensor:
+    if noise_pred.ndim != 3:
+        raise ValueError(f"RUM raw noise 必须是 3D token tensor，当前形状是 {tuple(noise_pred.shape)}。")
+    if latent_token_count <= 0:
+        raise ValueError("latent_token_count 必须大于 0。")
+    if noise_pred.shape[1] < latent_token_count:
+        raise ValueError(
+            f"RUM raw noise token 数不足：noise={noise_pred.shape[1]}, latent={latent_token_count}。"
+        )
+    return noise_pred[:, : int(latent_token_count)]
+
+
+def _pil_from_comfy_image(image: torch.Tensor):
+    if image.ndim != 3 or image.shape[-1] < 3:
+        raise ValueError(f"ComfyUI IMAGE 单张输入应为 [H,W,C>=3]，当前形状是 {tuple(image.shape)}。")
+    import numpy as np
+    from PIL import Image
+
+    array = torch.round(image[..., :3].detach().cpu().clamp(0.0, 1.0) * 255.0).to(torch.uint8).numpy()
+    return Image.fromarray(np.ascontiguousarray(array), mode="RGB")
+
+
+def preprocess_flux2_reference_image_tensor(image: torch.Tensor, *, vae_scale_factor: int) -> torch.Tensor:
+    if vae_scale_factor <= 0:
+        raise ValueError("vae_scale_factor 必须大于 0。")
+    pil_image = _pil_from_comfy_image(image)
+    width, height = pil_image.size
+    if width < 64 or height < 64:
+        raise ValueError(f"参考图尺寸过小：{width}x{height}；宽高都必须至少 64px。")
+    aspect_ratio = max(width / height, height / width)
+    if aspect_ratio > 8:
+        raise ValueError(f"参考图宽高比过大：{width}x{height}，ratio={aspect_ratio:.1f}:1；最大允许 8:1。")
+
+    target_area = 1024 * 1024
+    if width * height > target_area:
+        from PIL import Image
+
+        scale = math.sqrt(target_area / float(width * height))
+        width = int(width * scale)
+        height = int(height * scale)
+        pil_image = pil_image.resize((width, height), Image.Resampling.LANCZOS)
+
+    multiple_of = int(vae_scale_factor) * 2
+    cropped_width = (pil_image.size[0] // multiple_of) * multiple_of
+    cropped_height = (pil_image.size[1] // multiple_of) * multiple_of
+    if cropped_width <= 0 or cropped_height <= 0:
+        raise ValueError(
+            f"参考图裁剪到 {multiple_of} 倍数后无效：原始处理尺寸={pil_image.size[0]}x{pil_image.size[1]}。"
+        )
+
+    left = (pil_image.size[0] - cropped_width) // 2
+    top = (pil_image.size[1] - cropped_height) // 2
+    pil_image = pil_image.crop((left, top, left + cropped_width, top + cropped_height))
+
+    import numpy as np
+
+    array = np.asarray(pil_image, dtype=np.float32) / 255.0
+    tensor = torch.from_numpy(array).unsqueeze(0).permute(0, 3, 1, 2)
+    return tensor * 2.0 - 1.0
+
+
+def encode_flux2_vae_mode_latent(first_stage: nn.Module, image: torch.Tensor) -> torch.Tensor:
+    encoded = first_stage.encoder(image)
+    encoded = first_stage.quant_conv(encoded)
+    latent, _ = first_stage.regularization(encoded)
+    latent = patchify_flux2_latents(latent)
+    bn_mean = first_stage.bn.running_mean.view(1, -1, 1, 1).to(device=latent.device, dtype=latent.dtype)
+    bn_std = torch.sqrt(
+        first_stage.bn.running_var.view(1, -1, 1, 1).to(device=latent.device, dtype=latent.dtype) + first_stage.bn_eps
+    )
+    return (latent - bn_mean) / bn_std
+
+
+@torch.inference_mode()
+def encode_flux2_native_match_reference_image(vae, images) -> tuple[dict, str]:
+    import comfy.model_management
+
+    validate_comfy_reference_image_batch(images)
+
+    first_stage = _resolve_vae_first_stage(vae)
+    if not hasattr(first_stage, "bn"):
+        raise ValueError("当前 VAE 不是 FLUX.2 VAE：找不到 batch norm 参数 bn。")
+
+    vae_scale_factor = 8
+    processed = [preprocess_flux2_reference_image_tensor(image, vae_scale_factor=vae_scale_factor) for image in images]
+    dtype = getattr(vae, "vae_dtype", torch.bfloat16)
+    device = comfy.model_management.vae_device()
+    offload_device = comfy.model_management.vae_offload_device()
+    largest = max(processed, key=lambda tensor: tensor.shape[-2] * tensor.shape[-1])
+    memory_used = vae.memory_used_encode(largest.shape, dtype=dtype)
+    comfy.model_management.load_models_gpu([vae.patcher], memory_required=memory_used)
+
+    first_stage = first_stage.to(device)
+    patched_forwards = _patch_flux2_vae_attention_for_diffusers_math(first_stage)
+    latents = []
+    try:
+        for image in processed:
+            encoded = encode_flux2_vae_mode_latent(first_stage, image.to(device=device, dtype=dtype)).to(torch.float32)
+            latents.append(encoded.to(device="cpu", dtype=torch.float32))
+    finally:
+        _restore_module_forwards(patched_forwards)
+        first_stage.to(offload_device)
+
+    status_parts = [f"{latent.shape[-1] * 16}x{latent.shape[-2] * 16}->{tuple(latent.shape)}" for latent in latents]
+    return {"latents": latents}, "RUM reference latents 已编码：" + "; ".join(status_parts)
 
 
 def _rum_diffusers_double_block_forward(
@@ -322,10 +626,10 @@ def _rum_diffusers_double_block_forward(
     txt_key = txt_key.unflatten(-1, (self.num_heads, -1))
     txt_value = txt_value.unflatten(-1, (self.num_heads, -1))
 
-    img_query = _diffusers_rms_norm(img_query, self.img_attn.norm.query_norm.weight)
-    img_key = _diffusers_rms_norm(img_key, self.img_attn.norm.key_norm.weight)
-    txt_query = _diffusers_rms_norm(txt_query, self.txt_attn.norm.query_norm.weight)
-    txt_key = _diffusers_rms_norm(txt_key, self.txt_attn.norm.key_norm.weight)
+    img_query = _diffusers_rms_norm(img_query, _rms_norm_weight(self.img_attn.norm.query_norm))
+    img_key = _diffusers_rms_norm(img_key, _rms_norm_weight(self.img_attn.norm.key_norm))
+    txt_query = _diffusers_rms_norm(txt_query, _rms_norm_weight(self.txt_attn.norm.query_norm))
+    txt_key = _diffusers_rms_norm(txt_key, _rms_norm_weight(self.txt_attn.norm.key_norm))
 
     query = torch.cat((txt_query, img_query), dim=1)
     key = torch.cat((txt_key, img_key), dim=1)
@@ -380,8 +684,8 @@ def _rum_diffusers_single_block_forward(
     query = query.unflatten(-1, (self.num_heads, -1))
     key = key.unflatten(-1, (self.num_heads, -1))
     value = value.unflatten(-1, (self.num_heads, -1))
-    query = _diffusers_rms_norm(query, self.norm.query_norm.weight)
-    key = _diffusers_rms_norm(key, self.norm.key_norm.weight)
+    query = _diffusers_rms_norm(query, _rms_norm_weight(self.norm.query_norm))
+    key = _diffusers_rms_norm(key, _rms_norm_weight(self.norm.key_norm))
 
     rope = _diffusers_rope_from_comfy_pe(pe)
     query = _diffusers_apply_rotary_emb(query, rope)
@@ -425,6 +729,65 @@ def _diffusers_match_forward_patch(diffusion_model):
             block.forward = original_forward
 
 
+def _call_diffusers_match_forward_orig(
+    diffusion_model,
+    x_in: torch.Tensor,
+    timestep_in: torch.Tensor,
+    *,
+    context: torch.Tensor,
+    transformer_options: dict,
+    control,
+    guidance,
+    reference_latents,
+) -> torch.Tensor:
+    if x_in.ndim != 4:
+        raise ValueError(f"RUM diffusers-match 需要 4D latent，当前形状是 {tuple(x_in.shape)}。")
+
+    batch_size, _, height, width = x_in.shape
+    img_tokens = pack_flux2_latents(x_in)
+    img_ids = prepare_diffusers_latent_ids(
+        x_in,
+        device=x_in.device,
+        dtype=torch.float32,
+    )
+    if reference_latents is not None:
+        reference_tokens, reference_ids = pack_rum_reference_latents(
+            reference_latents,
+            batch_size=batch_size,
+            device=x_in.device,
+            dtype=x_in.dtype,
+        )
+        img_tokens, img_ids, denoise_token_count = append_reference_tokens(
+            img_tokens,
+            img_ids,
+            reference_tokens,
+            reference_ids,
+        )
+    else:
+        denoise_token_count = int(img_tokens.shape[1])
+
+    txt_ids = prepare_diffusers_text_ids(
+        batch_size,
+        context.shape[1],
+        device=x_in.device,
+        dtype=torch.float32,
+    )
+    model_output = diffusion_model.forward_orig(
+        img=img_tokens,
+        img_ids=img_ids,
+        txt=context,
+        txt_ids=txt_ids,
+        timesteps=timestep_in,
+        y=None,
+        guidance=guidance,
+        control=control,
+        transformer_options=transformer_options,
+        attn_mask=None,
+    )
+    model_output = crop_noise_to_latent_tokens(model_output, denoise_token_count)
+    return model_output.permute(0, 2, 1).reshape(batch_size, model_output.shape[-1], height, width)
+
+
 class RUMDiffusersTimestepWrapper:
     def __call__(self, apply_model, x, timestep, context, *args, **kwargs):
         diffusion_model = apply_model.class_obj
@@ -456,6 +819,25 @@ def _condition_tensor(model_cond):
     return value
 
 
+def _condition_reference_latents(model_cond):
+    value = getattr(model_cond, "reference_latents", model_cond)
+    return value
+
+
+def _model_inference_dtype(model, fallback: torch.dtype) -> torch.dtype:
+    get_dtype_inference = getattr(model, "get_dtype_inference", None)
+    if callable(get_dtype_inference):
+        return get_dtype_inference()
+
+    get_dtype = getattr(model, "get_dtype", None)
+    if callable(get_dtype):
+        return get_dtype()
+
+    diffusion_model = getattr(model, "diffusion_model", None)
+    dtype = getattr(diffusion_model, "dtype", None)
+    return dtype if isinstance(dtype, torch.dtype) else fallback
+
+
 def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
     import comfy.model_management
     import comfy.patcher_extension
@@ -468,7 +850,7 @@ def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
         raise ValueError("RUM diffusers-match raw-noise 路径暂不支持 area/mask conditioning；请用全图 conditioning 做对齐验证。")
 
     diffusion_model = model.diffusion_model
-    diffusion_dtype = model.get_dtype_inference()
+    diffusion_dtype = _model_inference_dtype(model, x.dtype)
     x_in = model.model_sampling.calculate_input(timestep, area_cond.input_x).to(diffusion_dtype)
     device = x_in.device
 
@@ -494,16 +876,19 @@ def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
     transformer_options["rum_diffusers_cfg_branch"] = branch
 
     guidance = _condition_tensor(conditioning["guidance"]) if "guidance" in conditioning else None
+    reference_latents = _condition_reference_latents(conditioning["rum_reference_latents"]) if "rum_reference_latents" in conditioning else None
     timestep_in = ((timestep.to(torch.float32) * 1000.0).to(diffusion_dtype) / 1000.0).to(diffusion_dtype)
 
     with torch.inference_mode(), _diffusers_match_forward_patch(diffusion_model):
-        model_output = diffusion_model(
+        model_output = _call_diffusers_match_forward_orig(
+            diffusion_model,
             x_in,
             timestep_in,
             context=context,
-            control=area_cond.control,
             transformer_options=transformer_options,
+            control=area_cond.control,
             guidance=guidance,
+            reference_latents=reference_latents,
         )
 
     if len(model_output) > 1 and not torch.is_tensor(model_output):
@@ -514,9 +899,12 @@ def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
 
 
 
-def create_diffusers_cfg_guider(model, positive, negative, cfg: float):
+def create_diffusers_cfg_guider(model, positive, negative, cfg: float, reference_latents=None):
     import comfy.model_patcher
     import comfy.samplers
+
+    if reference_latents is not None:
+        validate_rum_reference_latents(reference_latents)
 
     def branch_options(model_options, branch: str):
         options = comfy.model_patcher.create_model_options_clone(model_options)
@@ -563,6 +951,7 @@ def create_diffusers_cfg_guider(model, positive, negative, cfg: float):
                 original_extra_conds,
                 token_policy,
                 disable_guidance=match_config.get("disable_guidance", True),
+                reference_latents=reference_latents,
             )
             try:
                 return super().inner_sample(
@@ -1286,6 +1675,13 @@ def _exact_clip_causal_mask(seq_len: int, *, dtype: torch.dtype, device: torch.d
     return torch.full((seq_len, seq_len), torch.finfo(dtype).min, dtype=dtype, device=device).triu_(1)[None, None, :, :]
 
 
+def _exact_clip_eager_attention(query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, attention_mask: torch.Tensor, scale: float) -> torch.Tensor:
+    attn_weights = torch.matmul(query, key.transpose(-1, -2)) * float(scale)
+    attn_weights = attn_weights + attention_mask
+    attn_weights = F.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query.dtype)
+    return torch.matmul(attn_weights, value).transpose(1, 2).contiguous()
+
+
 def _clip_ids_from_comfy_tokens(token_rows, *, max_sequence_length: int) -> list[int]:
     if not token_rows:
         raise ValueError("SDXL tokenizer 没有生成任何 token。")
@@ -1313,16 +1709,13 @@ def _encode_clip_text_hf_semantics(text_model, input_ids: torch.Tensor, *, layer
         query = _exact_clip_linear(attn.q_proj, normed).view(batch, seq_len, attn.heads, -1).transpose(1, 2)
         key = _exact_clip_linear(attn.k_proj, normed).view(batch, seq_len, attn.heads, -1).transpose(1, 2)
         value = _exact_clip_linear(attn.v_proj, normed).view(batch, seq_len, attn.heads, -1).transpose(1, 2)
-        attn_output = F.scaled_dot_product_attention(
+        attn_output = _exact_clip_eager_attention(
             query,
             key,
             value,
-            attn_mask=causal_mask,
-            dropout_p=0.0,
-            is_causal=False,
-            scale=query.shape[-1] ** -0.5,
-        )
-        attn_output = attn_output.transpose(1, 2).contiguous().reshape(batch, seq_len, channels)
+            causal_mask,
+            query.shape[-1] ** -0.5,
+        ).reshape(batch, seq_len, channels)
         hidden = residual + _exact_clip_linear(attn.out_proj, attn_output)
 
         residual = hidden
@@ -1339,6 +1732,141 @@ def _encode_clip_text_hf_semantics(text_model, input_ids: torch.Tensor, *, layer
     return collected
 
 
+_SDXL_TEACHER_CACHE = {}
+_SDXL_TEACHER_DTYPES = {torch.float16, torch.bfloat16, torch.float32}
+
+
+def validate_comfy_reference_image_batch(images: torch.Tensor) -> None:
+    if not torch.is_tensor(images):
+        raise ValueError(f"RUM reference encode 需要 ComfyUI IMAGE tensor [B,H,W,C]，当前类型是 {type(images)}。")
+    if images.ndim != 4:
+        raise ValueError(f"RUM reference encode 需要 ComfyUI IMAGE tensor [B,H,W,C]，当前形状是 {tuple(images.shape)}。")
+    if images.shape[0] <= 0:
+        raise ValueError("RUM reference encode 需要至少 1 张图片。")
+    if images.shape[1] <= 0 or images.shape[2] <= 0:
+        raise ValueError(f"RUM reference encode 图片高宽必须大于 0，当前形状是 {tuple(images.shape)}。")
+    if images.shape[-1] < 3:
+        raise ValueError(f"RUM reference encode 需要 RGB 图片 [B,H,W,C>=3]，当前 channel={images.shape[-1]}。")
+    if not torch.is_floating_point(images):
+        raise ValueError(f"RUM reference encode 需要浮点 IMAGE tensor，当前 dtype={images.dtype}。")
+
+
+def validate_rum_reference_latents(reference_latents) -> list[torch.Tensor]:
+    if reference_latents is None:
+        raise ValueError("RUM reference_latents 不能为空。")
+    if isinstance(reference_latents, dict):
+        latents = reference_latents.get("latents")
+    else:
+        latents = reference_latents
+    if not isinstance(latents, list):
+        raise ValueError(f"RUM reference_latents 需要包含 latents list，当前类型是 {type(latents)}。")
+    if len(latents) == 0:
+        raise ValueError("RUM reference_latents list 不能为空。")
+
+    for index, latent in enumerate(latents):
+        if not torch.is_tensor(latent):
+            raise ValueError(f"RUM reference latent #{index} 必须是 tensor，当前类型是 {type(latent)}。")
+        if latent.ndim != 4:
+            raise ValueError(f"RUM reference latent #{index} 必须是 4D tensor，当前形状是 {tuple(latent.shape)}。")
+        if latent.shape[0] != 1:
+            raise ValueError(f"RUM reference latent #{index} 单项 batch 必须为 1，当前形状是 {tuple(latent.shape)}。")
+        if latent.shape[1] <= 0 or latent.shape[2] <= 0 or latent.shape[3] <= 0:
+            raise ValueError(f"RUM reference latent #{index} 维度必须大于 0，当前形状是 {tuple(latent.shape)}。")
+    return latents
+
+
+def validate_sdxl_teacher_dtype(dtype: torch.dtype) -> torch.dtype:
+    if dtype not in _SDXL_TEACHER_DTYPES:
+        raise ValueError(f"RUM SDXL teacher exact path 只支持 FP16/BF16/FP32，当前 dtype={dtype}。")
+    return dtype
+
+
+def _resolve_comfy_model_dir() -> Path:
+    try:
+        import folder_paths
+    except Exception as exc:
+        raise ValueError("无法导入 ComfyUI folder_paths，不能定位 SDXL teacher HF 目录。") from exc
+
+    model_paths = getattr(folder_paths, "folder_names_and_paths", {}).get("text_encoders")
+    if not model_paths:
+        model_paths = getattr(folder_paths, "folder_names_and_paths", {}).get("clip")
+    if not model_paths:
+        raise ValueError("ComfyUI folder_paths 没有注册 text_encoders/clip 目录，不能定位 SDXL teacher HF 目录。")
+
+    directories = model_paths[0]
+    if not directories:
+        raise ValueError("ComfyUI text_encoders/clip 搜索目录为空，不能定位 SDXL teacher HF 目录。")
+    return Path(directories[0])
+
+
+def _find_sdxl_teacher_dirs(text_encoder_dir: Path) -> tuple[Path, Path]:
+    l_dirs = sorted(path for path in text_encoder_dir.glob("*_clip_l_dir") if (path / "model.safetensors").is_file())
+    g_dirs = sorted(path for path in text_encoder_dir.glob("*_clip_g_dir") if (path / "model.safetensors").is_file())
+    pairs = []
+    g_by_prefix = {path.name.removesuffix("_clip_g_dir"): path for path in g_dirs}
+    for l_dir in l_dirs:
+        prefix = l_dir.name.removesuffix("_clip_l_dir")
+        g_dir = g_by_prefix.get(prefix)
+        if g_dir is not None:
+            pairs.append((l_dir, g_dir))
+
+    if len(pairs) == 1:
+        return pairs[0]
+    if not pairs:
+        raise FileNotFoundError(
+            "找不到 SDXL teacher HF 目录。请在 ComfyUI models/text_encoders 下准备 "
+            "*_clip_l_dir/model.safetensors 和 *_clip_g_dir/model.safetensors。"
+        )
+    names = ", ".join(f"{left.name} + {right.name}" for left, right in pairs)
+    raise ValueError(f"找到多个 SDXL teacher HF 目录，无法确定使用哪一组：{names}")
+
+
+def _load_sdxl_teacher_hf_pair(device: torch.device, dtype: torch.dtype):
+    text_encoder_dir = _resolve_comfy_model_dir()
+    l_dir, g_dir = _find_sdxl_teacher_dirs(text_encoder_dir)
+    cache_key = (str(l_dir), str(g_dir), str(device), str(dtype))
+    cached = _SDXL_TEACHER_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
+    except Exception as exc:
+        raise ValueError("RUM SDXL teacher exact path 需要 transformers 可用。") from exc
+
+    tokenizer_dir = Path(__file__).resolve().parents[2] / "comfy" / "sd1_tokenizer"
+    if not tokenizer_dir.is_dir():
+        tokenizer_dir = text_encoder_dir.parent.parent / "comfy" / "sd1_tokenizer"
+    if not tokenizer_dir.is_dir():
+        raise FileNotFoundError(f"找不到 ComfyUI SD1 tokenizer 目录：{tokenizer_dir}")
+
+    clip_l = CLIPTextModel.from_pretrained(str(l_dir), torch_dtype=dtype).to(device).eval()
+    clip_g = CLIPTextModelWithProjection.from_pretrained(str(g_dir), torch_dtype=dtype).to(device).eval()
+    tokenizer_l = CLIPTokenizer.from_pretrained(str(tokenizer_dir))
+    tokenizer_g = CLIPTokenizer.from_pretrained(str(tokenizer_dir), pad_token="!")
+    cached = (clip_l, clip_g, tokenizer_l, tokenizer_g)
+    _SDXL_TEACHER_CACHE[cache_key] = cached
+    return cached
+
+
+@torch.inference_mode()
+def _encode_sdxl_teacher_hf_exact(text: str, *, device: torch.device, dtype: torch.dtype):
+    dtype = validate_sdxl_teacher_dtype(dtype)
+    clip_l, clip_g, tokenizer_l, tokenizer_g = _load_sdxl_teacher_hf_pair(device, dtype)
+    embeddings = []
+    for tokenizer, model in ((tokenizer_l, clip_l), (tokenizer_g, clip_g)):
+        inputs = tokenizer(
+            [text],
+            padding="max_length",
+            max_length=77,
+            truncation=True,
+            return_tensors="pt",
+        )
+        output = model(inputs.input_ids.to(device), output_hidden_states=True)
+        embeddings.append(output.hidden_states[-2])
+    return torch.cat(embeddings, dim=-1)
+
+
 @torch.inference_mode()
 def encode_comfy_sdxl_hf_semantics(sdxl_clip, text: str, *, dtype: torch.dtype = torch.float16):
     cond_stage_model = getattr(sdxl_clip, "cond_stage_model", None)
@@ -1346,6 +1874,12 @@ def encode_comfy_sdxl_hf_semantics(sdxl_clip, text: str, *, dtype: torch.dtype =
     clip_g = getattr(cond_stage_model, "clip_g", None)
     if clip_l is None or clip_g is None:
         raise ValueError("当前 CLIP 不是 ComfyUI SDXL DualCLIP。")
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("RUM SDXL teacher exact path 需要 CUDA；像素级对齐验证不能在 CPU CLIP/VAE 上执行。")
+    device = torch.device("cuda")
+    exact = _encode_sdxl_teacher_hf_exact(text, device=device, dtype=dtype)
+    return [[exact.to(device="cpu", dtype=torch.float32), {}]]
 
     tokens = sdxl_clip.tokenize(text, disable_weights=True)
     if "l" not in tokens or "g" not in tokens:

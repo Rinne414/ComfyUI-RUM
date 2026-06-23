@@ -11,18 +11,11 @@ from huggingface_hub import hf_hub_download
 
 REQUIRED_FILES = [
     {
-        "label": "FLUX.2-Klein 4B base diffusion model",
-        "repo": "black-forest-labs/FLUX.2-klein-base-4b-fp8",
-        "filename": "flux-2-klein-base-4b-fp8.safetensors",
-        "folder": "diffusion_models",
-        "target": "flux-2-klein/flux-2-klein-4b-fp8.safetensors",
-    },
-    {
-        "label": "RUM FLUX.2-Klein preview checkpoint",
+        "label": "RUM FLUX.2-Klein T2I checkpoint",
         "repo": "rimochan/RUM-FLUX.2-klein-4B-preview",
-        "filename": "model-checkpoint-608000.safetensors",
+        "filename": "model-checkpoint-1158000.safetensors",
         "folder": "diffusion_models",
-        "target": "rum-flux2-klein-4b-preview.safetensors",
+        "target": "model-checkpoint-1158000.safetensors",
     },
     {
         "label": "FLUX.2-Klein Qwen3 4B text encoder",
@@ -37,6 +30,16 @@ REQUIRED_FILES = [
         "filename": "split_files/vae/flux2-vae.safetensors",
         "folder": "vae",
         "target": "flux2-vae.safetensors",
+    },
+]
+
+EDIT_CHECKPOINT_FILES = [
+    {
+        "label": "RUM FLUX.2-Klein edit checkpoint",
+        "repo": "rimochan/RUM-FLUX.2-klein-4B-preview",
+        "filename": "model-checkpoint-1202000.safetensors",
+        "folder": "diffusion_models",
+        "target": "model-checkpoint-1202000.safetensors",
     },
 ]
 
@@ -59,18 +62,46 @@ GENERIC_SDXL_CLIP_FILES = [
 
 TEACHER_SDXL_CLIP_FILES = [
     {
-        "label": "Diffusers-match SDXL teacher CLIP-L text encoder",
-        "repo": "Ine007/waiIllustriousSDXL_v140",
+        "label": "Diffusers-match SDXL teacher CLIP-L text encoder file",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
         "filename": "text_encoder/model.safetensors",
         "folder": "text_encoders",
-        "target": "waiIllustriousSDXL_v140_clip_l.safetensors",
+        "target": "waiNSFWIllustrious_v140_clip_l.safetensors",
     },
     {
-        "label": "Diffusers-match SDXL teacher CLIP-G text encoder",
-        "repo": "Ine007/waiIllustriousSDXL_v140",
+        "label": "Diffusers-match SDXL teacher CLIP-G text encoder file",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
         "filename": "text_encoder_2/model.safetensors",
         "folder": "text_encoders",
-        "target": "waiIllustriousSDXL_v140_clip_g.safetensors",
+        "target": "waiNSFWIllustrious_v140_clip_g.safetensors",
+    },
+    {
+        "label": "Diffusers-match SDXL teacher CLIP-L HF config",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
+        "filename": "text_encoder/config.json",
+        "folder": "text_encoders",
+        "target": "waiNSFWIllustrious_v140_clip_l_dir/config.json",
+    },
+    {
+        "label": "Diffusers-match SDXL teacher CLIP-L HF weights",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
+        "filename": "text_encoder/model.safetensors",
+        "folder": "text_encoders",
+        "target": "waiNSFWIllustrious_v140_clip_l_dir/model.safetensors",
+    },
+    {
+        "label": "Diffusers-match SDXL teacher CLIP-G HF config",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
+        "filename": "text_encoder_2/config.json",
+        "folder": "text_encoders",
+        "target": "waiNSFWIllustrious_v140_clip_g_dir/config.json",
+    },
+    {
+        "label": "Diffusers-match SDXL teacher CLIP-G HF weights",
+        "repo": "Ine007/waiNSFWIllustrious_v140",
+        "filename": "text_encoder_2/model.safetensors",
+        "folder": "text_encoders",
+        "target": "waiNSFWIllustrious_v140_clip_g_dir/model.safetensors",
     },
 ]
 
@@ -110,12 +141,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-teacher-clip",
         action="store_true",
-        help="Also download waiIllustriousSDXL_v140 CLIP files used by the diffusers-match sample workflow.",
+        help="Also download waiNSFWIllustrious_v140 CLIP files used by the diffusers-match sample workflow.",
+    )
+    parser.add_argument(
+        "--include-edit-checkpoint",
+        action="store_true",
+        help="Also download model-checkpoint-1202000.safetensors for the RUM edit workflow.",
     )
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Download base files plus both generic SDXL CLIP and diffusers-match teacher CLIP files.",
+        help="Download base files plus edit checkpoint and both SDXL CLIP sets.",
     )
     parser.add_argument("--token", default=None, help="Optional Hugging Face token.")
     return parser.parse_args()
@@ -138,6 +174,8 @@ def download_one(item: dict[str, str], models_dir: Path, token: str | None) -> P
 
 def selected_files(args: argparse.Namespace) -> list[dict[str, str]]:
     files = list(REQUIRED_FILES)
+    if args.include_edit_checkpoint or args.all:
+        files.extend(EDIT_CHECKPOINT_FILES)
     if args.include_sdxl_clip or args.all:
         files.extend(GENERIC_SDXL_CLIP_FILES)
     if args.include_teacher_clip or args.all:
@@ -154,10 +192,15 @@ def print_workflow_hint(args: argparse.Namespace) -> None:
     if args.include_teacher_clip or args.all:
         print(
             "- examples/diffusers_match_workflow*.json can use "
-            "waiIllustriousSDXL_v140_clip_l.safetensors + waiIllustriousSDXL_v140_clip_g.safetensors."
+            "waiNSFWIllustrious_v140_clip_l.safetensors + waiNSFWIllustrious_v140_clip_g.safetensors, "
+            "with matching *_clip_l_dir and *_clip_g_dir HF folders for exact text encoding."
         )
     else:
         print("- For examples/diffusers_match_workflow*.json, rerun with --include-teacher-clip.")
+    if args.include_edit_checkpoint or args.all:
+        print("- examples/diffusers_match_edit_workflow_api.json can use model-checkpoint-1202000.safetensors.")
+    else:
+        print("- For examples/diffusers_match_edit_workflow_api.json, rerun with --include-edit-checkpoint.")
 
 
 def main() -> None:

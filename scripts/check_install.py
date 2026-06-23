@@ -12,25 +12,37 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_MODELS = {
     "diffusion_models": [
-        "flux-2-klein/flux-2-klein-4b-fp8.safetensors",
-        "rum-flux2-klein-4b-preview.safetensors",
+        "model-checkpoint-1158000.safetensors",
+        "model-checkpoint-1202000.safetensors",
     ],
     "text_encoders": [
         "qwen_3_4b.safetensors",
-        "clip_l.safetensors",
-        "clip_g.safetensors",
-        "waiIllustriousSDXL_v140_clip_l.safetensors",
-        "waiIllustriousSDXL_v140_clip_g.safetensors",
+        "waiNSFWIllustrious_v140_clip_l.safetensors",
+        "waiNSFWIllustrious_v140_clip_g.safetensors",
     ],
     "vae": ["flux2-vae.safetensors"],
 }
 
 OPTIONAL_WORKFLOW_FILES = {
     "normal native workflow": ["clip_l.safetensors", "clip_g.safetensors"],
-    "diffusers-match workflow": [
-        "waiIllustriousSDXL_v140_clip_l.safetensors",
-        "waiIllustriousSDXL_v140_clip_g.safetensors",
+    "diffusers-match T2I/edit workflow": [
+        "waiNSFWIllustrious_v140_clip_l.safetensors",
+        "waiNSFWIllustrious_v140_clip_g.safetensors",
     ],
+}
+
+EXPECTED_TEACHER_DIRS = [
+    "waiNSFWIllustrious_v140_clip_l_dir/config.json",
+    "waiNSFWIllustrious_v140_clip_l_dir/model.safetensors",
+    "waiNSFWIllustrious_v140_clip_g_dir/config.json",
+    "waiNSFWIllustrious_v140_clip_g_dir/model.safetensors",
+]
+
+EXPECTED_NODES = {
+    "RUMFlux2DiffusersCFGuider",
+    "RUMFlux2NativeMatchReferenceEncode",
+    "RUMFlux2NativeMatchTextEncode",
+    "RUMFlux2NativeMatchVAEDecode",
 }
 
 
@@ -98,9 +110,24 @@ def print_workflow_status(text_encoder_names: list[str]) -> None:
     for label, required in OPTIONAL_WORKFLOW_FILES.items():
         missing = [name for name in required if name not in visible]
         if missing:
-            print(f"  MISS {label}: {', '.join(missing)}")
+            print(f"  OPTIONAL_MISS {label}: {', '.join(missing)}")
         else:
             print(f"  OK {label}")
+
+
+def print_teacher_dir_status(comfy_root: Path) -> None:
+    text_encoder_dir = comfy_root / "models" / "text_encoders"
+    print("SDXL teacher HF dirs:")
+    for expected in EXPECTED_TEACHER_DIRS:
+        marker = "OK" if (text_encoder_dir / expected).is_file() else "MISS"
+        print(f"  {marker} {expected}")
+
+
+def print_node_status(node_names: set[str]) -> None:
+    print("Node availability:")
+    for node_name in sorted(EXPECTED_NODES):
+        marker = "OK" if node_name in node_names else "MISS"
+        print(f"  {marker} {node_name}")
 
 
 def main() -> int:
@@ -113,7 +140,9 @@ def main() -> int:
         print(f"{package}: {getattr(module, '__version__', 'ok')}")
 
     module = load_node_module(comfy_root)
-    print("Node classes:", ", ".join(sorted(module.NODE_CLASS_MAPPINGS)))
+    node_names = set(module.NODE_CLASS_MAPPINGS)
+    print("Node classes:", ", ".join(sorted(node_names)))
+    print_node_status(node_names)
 
     import folder_paths
 
@@ -129,6 +158,7 @@ def main() -> int:
         print_model_status(folder_name, names)
 
     print_workflow_status(text_encoder_names)
+    print_teacher_dir_status(comfy_root)
     return 0
 
 
