@@ -1,0 +1,1352 @@
+{
+  "id": "13f28565-eb81-43e7-ac48-bdf58bc94a74",
+  "revision": 0,
+  "last_node_id": 27,
+  "last_link_id": 53,
+  "nodes": [
+    {
+      "id": 10,
+      "type": "LoadImage",
+      "pos": [
+        920,
+        840
+      ],
+      "size": [
+        280,
+        360
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            51
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "test.png",
+        "image"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "66f6fa19-4b2f-4e59-977a-0552a83141a0",
+      "pos": [
+        1280,
+        840
+      ],
+      "size": [
+        480,
+        715.140625
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            53
+          ]
+        }
+      ],
+      "properties": {
+        "proxyWidgets": [
+          [
+            "2",
+            "rum_checkpoint_name"
+          ],
+          [
+            "6",
+            "prompt"
+          ],
+          [
+            "6",
+            "negative_prompt"
+          ],
+          [
+            "13",
+            "noise_seed"
+          ],
+          [
+            "15",
+            "steps"
+          ],
+          [
+            "22",
+            "cfg"
+          ],
+          [
+            "18",
+            "vae_name"
+          ],
+          [
+            "4",
+            "clip_name"
+          ],
+          [
+            "5",
+            "clip_name1"
+          ],
+          [
+            "5",
+            "clip_name2"
+          ]
+        ],
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 27,
+      "type": "PreviewImage",
+      "pos": [
+        1840,
+        840
+      ],
+      "size": [
+        225,
+        279.140625
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 53
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.26.2",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      51,
+      10,
+      0,
+      26,
+      0,
+      "IMAGE"
+    ],
+    [
+      53,
+      26,
+      0,
+      27,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "definitions": {
+    "subgraphs": [
+      {
+        "id": "66f6fa19-4b2f-4e59-977a-0552a83141a0",
+        "version": 1,
+        "state": {
+          "lastGroupId": 0,
+          "lastNodeId": 27,
+          "lastLinkId": 53,
+          "lastRerouteId": 0
+        },
+        "revision": 0,
+        "config": {},
+        "name": "New Subgraph",
+        "inputNode": {
+          "id": -10,
+          "bounding": [
+            -88,
+            808.5703125,
+            128,
+            68
+          ]
+        },
+        "outputNode": {
+          "id": -20,
+          "bounding": [
+            2898.8441406250004,
+            808.5703125,
+            128,
+            68
+          ]
+        },
+        "inputs": [
+          {
+            "id": "e4adf1d1-8318-4d11-9a9a-1483e2da7761",
+            "name": "image",
+            "type": "IMAGE",
+            "linkIds": [
+              33,
+              48
+            ],
+            "localized_name": "image",
+            "pos": [
+              16,
+              832.5703125
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "id": "f6d8dd9a-a048-4f84-a8bc-ca2913e1e146",
+            "name": "images",
+            "type": "IMAGE",
+            "linkIds": [
+              42
+            ],
+            "localized_name": "images",
+            "pos": [
+              2922.8441406250004,
+              832.5703125
+            ]
+          }
+        ],
+        "widgets": [],
+        "nodes": [
+          {
+            "id": 2,
+            "type": "RUMFlux2LoadNativeModel",
+            "pos": [
+              120,
+              120
+            ],
+            "size": [
+              320,
+              200
+            ],
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "links": [
+                  26
+                ]
+              },
+              {
+                "localized_name": "status",
+                "name": "status",
+                "type": "STRING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2LoadNativeModel"
+            },
+            "widgets_values": [
+              "model-checkpoint-1246000.safetensors",
+              200,
+              ""
+            ]
+          },
+          {
+            "id": 3,
+            "type": "RUMFlux2DiffusersMatchModelPatch",
+            "pos": [
+              520,
+              120
+            ],
+            "size": [
+              400,
+              200
+            ],
+            "flags": {},
+            "order": 6,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 26
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "links": [
+                  44
+                ]
+              },
+              {
+                "localized_name": "status",
+                "name": "status",
+                "type": "STRING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2DiffusersMatchModelPatch"
+            },
+            "widgets_values": [
+              200,
+              77,
+              true
+            ]
+          },
+          {
+            "id": 4,
+            "type": "CLIPLoader",
+            "pos": [
+              120,
+              400
+            ],
+            "size": [
+              280,
+              160
+            ],
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "CLIP",
+                "name": "CLIP",
+                "type": "CLIP",
+                "links": [
+                  27
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "CLIPLoader"
+            },
+            "widgets_values": [
+              "qwen_3_4b.safetensors",
+              "flux2",
+              "default"
+            ]
+          },
+          {
+            "id": 5,
+            "type": "DualCLIPLoader",
+            "pos": [
+              120,
+              640
+            ],
+            "size": [
+              280,
+              200
+            ],
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "CLIP",
+                "name": "CLIP",
+                "type": "CLIP",
+                "links": [
+                  28
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "DualCLIPLoader"
+            },
+            "widgets_values": [
+              "waiIllustriousSDXL_v140_clip_l.safetensors",
+              "waiIllustriousSDXL_v140_clip_g.safetensors",
+              "sdxl",
+              "default"
+            ]
+          },
+          {
+            "id": 6,
+            "type": "RUMFlux2NativeMatchTextEncode",
+            "pos": [
+              520,
+              400
+            ],
+            "size": [
+              400,
+              480
+            ],
+            "flags": {},
+            "order": 7,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "qwen_clip",
+                "name": "qwen_clip",
+                "type": "CLIP",
+                "link": 27
+              },
+              {
+                "localized_name": "sdxl_clip",
+                "name": "sdxl_clip",
+                "type": "CLIP",
+                "link": 28
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "positive",
+                "name": "positive",
+                "type": "CONDITIONING",
+                "links": [
+                  45
+                ]
+              },
+              {
+                "localized_name": "negative",
+                "name": "negative",
+                "type": "CONDITIONING",
+                "links": [
+                  46
+                ]
+              },
+              {
+                "localized_name": "status",
+                "name": "status",
+                "type": "STRING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2NativeMatchTextEncode"
+            },
+            "widgets_values": [
+              "将服装改为school uniform, short sleeves",
+              "",
+              0,
+              false,
+              200,
+              77,
+              2048,
+              "10,20,30"
+            ]
+          },
+          {
+            "id": 12,
+            "type": "EmptyFlux2LatentImage",
+            "pos": [
+              1520,
+              120
+            ],
+            "size": [
+              280,
+              160
+            ],
+            "flags": {},
+            "order": 8,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "width",
+                "name": "width",
+                "type": "INT",
+                "widget": {
+                  "name": "width"
+                },
+                "link": 29
+              },
+              {
+                "localized_name": "height",
+                "name": "height",
+                "type": "INT",
+                "widget": {
+                  "name": "height"
+                },
+                "link": 30
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "Latent",
+                "name": "LATENT",
+                "type": "LATENT",
+                "links": [
+                  39
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "EmptyFlux2LatentImage"
+            },
+            "widgets_values": [
+              1024,
+              1024,
+              1
+            ]
+          },
+          {
+            "id": 13,
+            "type": "RUMFlux2DiffusersNoise",
+            "pos": [
+              120,
+              1120
+            ],
+            "size": [
+              320,
+              160
+            ],
+            "flags": {},
+            "order": 3,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "noise",
+                "name": "noise",
+                "type": "NOISE",
+                "links": [
+                  35
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2DiffusersNoise"
+            },
+            "widgets_values": [
+              1,
+              "fixed",
+              "bfloat16"
+            ]
+          },
+          {
+            "id": 14,
+            "type": "RUMFlux2DiffusersEulerSampler",
+            "pos": [
+              120,
+              1360
+            ],
+            "size": [
+              320,
+              80
+            ],
+            "flags": {},
+            "order": 4,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "sampler",
+                "name": "sampler",
+                "type": "SAMPLER",
+                "links": [
+                  37
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2DiffusersEulerSampler"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 15,
+            "type": "RUMFlux2DiffusersScheduler",
+            "pos": [
+              1520,
+              360
+            ],
+            "size": [
+              320,
+              200
+            ],
+            "flags": {},
+            "order": 9,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "width",
+                "name": "width",
+                "type": "INT",
+                "widget": {
+                  "name": "width"
+                },
+                "link": 31
+              },
+              {
+                "localized_name": "height",
+                "name": "height",
+                "type": "INT",
+                "widget": {
+                  "name": "height"
+                },
+                "link": 32
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "sigmas",
+                "name": "sigmas",
+                "type": "SIGMAS",
+                "links": [
+                  38
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2DiffusersScheduler"
+            },
+            "widgets_values": [
+              20,
+              960,
+              1024
+            ]
+          },
+          {
+            "id": 16,
+            "type": "RUMFlux2NativeMatchReferenceEncode",
+            "pos": [
+              520,
+              1040
+            ],
+            "size": [
+              360,
+              120
+            ],
+            "flags": {},
+            "order": 10,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "image",
+                "name": "image",
+                "type": "IMAGE",
+                "link": 33
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 34
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "reference_latents",
+                "name": "reference_latents",
+                "type": "RUM_REFERENCE_LATENTS",
+                "links": [
+                  47
+                ]
+              },
+              {
+                "localized_name": "status",
+                "name": "status",
+                "type": "STRING",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2NativeMatchReferenceEncode"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 17,
+            "type": "SamplerCustomAdvanced",
+            "pos": [
+              1920,
+              120
+            ],
+            "size": [
+              240,
+              400
+            ],
+            "flags": {},
+            "order": 11,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "噪波",
+                "name": "noise",
+                "type": "NOISE",
+                "link": 35
+              },
+              {
+                "localized_name": "引导器",
+                "name": "guider",
+                "type": "GUIDER",
+                "link": 36
+              },
+              {
+                "localized_name": "采样器",
+                "name": "sampler",
+                "type": "SAMPLER",
+                "link": 37
+              },
+              {
+                "localized_name": "西格玛",
+                "name": "sigmas",
+                "type": "SIGMAS",
+                "link": 38
+              },
+              {
+                "localized_name": "Latent图像",
+                "name": "latent_image",
+                "type": "LATENT",
+                "link": 39
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "Latent",
+                "name": "output",
+                "type": "LATENT",
+                "links": [
+                  40
+                ]
+              },
+              {
+                "localized_name": "降噪Latent",
+                "name": "denoised_output",
+                "type": "LATENT",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "SamplerCustomAdvanced"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 18,
+            "type": "VAELoader",
+            "pos": [
+              120,
+              1520
+            ],
+            "size": [
+              280,
+              80
+            ],
+            "flags": {},
+            "order": 5,
+            "mode": 0,
+            "inputs": [],
+            "outputs": [
+              {
+                "localized_name": "VAE",
+                "name": "VAE",
+                "type": "VAE",
+                "links": [
+                  34,
+                  41
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "VAELoader"
+            },
+            "widgets_values": [
+              "flux2-vae.safetensors"
+            ]
+          },
+          {
+            "id": 19,
+            "type": "RUMFlux2NativeMatchVAEDecode",
+            "pos": [
+              2200,
+              120
+            ],
+            "size": [
+              320,
+              120
+            ],
+            "flags": {},
+            "order": 12,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "samples",
+                "name": "samples",
+                "type": "LATENT",
+                "link": 40
+              },
+              {
+                "localized_name": "vae",
+                "name": "vae",
+                "type": "VAE",
+                "link": 41
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "image",
+                "name": "image",
+                "type": "IMAGE",
+                "links": [
+                  43
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2NativeMatchVAEDecode"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 21,
+            "type": "RUMRoundImageForSave",
+            "pos": [
+              2600,
+              120
+            ],
+            "size": [
+              240,
+              80
+            ],
+            "flags": {},
+            "order": 13,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "link": 43
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "images",
+                "name": "images",
+                "type": "IMAGE",
+                "links": [
+                  42
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMRoundImageForSave"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 22,
+            "type": "RUMFlux2DiffusersCFGuider",
+            "pos": [
+              1000,
+              800
+            ],
+            "size": [
+              360,
+              200
+            ],
+            "flags": {},
+            "order": 14,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "model",
+                "name": "model",
+                "type": "MODEL",
+                "link": 44
+              },
+              {
+                "localized_name": "positive",
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": 45
+              },
+              {
+                "localized_name": "negative",
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": 46
+              },
+              {
+                "localized_name": "reference_latents",
+                "name": "reference_latents",
+                "shape": 7,
+                "type": "RUM_REFERENCE_LATENTS",
+                "link": 47
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "guider",
+                "name": "guider",
+                "type": "GUIDER",
+                "links": [
+                  36
+                ]
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfyui-rum",
+              "ver": "452e1a6ccb728b846c938cc95599e61413b3f869",
+              "Node name for S&R": "RUMFlux2DiffusersCFGuider"
+            },
+            "widgets_values": [
+              9
+            ]
+          },
+          {
+            "id": 23,
+            "type": "GetImageSize",
+            "pos": [
+              520,
+              840
+            ],
+            "size": [
+              240,
+              120
+            ],
+            "flags": {},
+            "order": 15,
+            "mode": 0,
+            "inputs": [
+              {
+                "localized_name": "图像",
+                "name": "image",
+                "type": "IMAGE",
+                "link": 48
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "宽度",
+                "name": "width",
+                "type": "INT",
+                "links": [
+                  49
+                ]
+              },
+              {
+                "localized_name": "高度",
+                "name": "height",
+                "type": "INT",
+                "links": [
+                  50
+                ]
+              },
+              {
+                "localized_name": "批处理大小",
+                "name": "batch_size",
+                "type": "INT",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "GetImageSize"
+            },
+            "widgets_values": []
+          },
+          {
+            "id": 24,
+            "type": "ComfyMathExpression",
+            "pos": [
+              1000,
+              120
+            ],
+            "size": [
+              400,
+              200
+            ],
+            "flags": {},
+            "order": 16,
+            "mode": 0,
+            "inputs": [
+              {
+                "label": "a",
+                "localized_name": "values.a",
+                "name": "values.a",
+                "type": "FLOAT,INT,BOOLEAN",
+                "link": 49
+              },
+              {
+                "label": "b",
+                "localized_name": "values.b",
+                "name": "values.b",
+                "shape": 7,
+                "type": "FLOAT,INT,BOOLEAN",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "浮点",
+                "name": "FLOAT",
+                "type": "FLOAT",
+                "links": null
+              },
+              {
+                "localized_name": "整数",
+                "name": "INT",
+                "type": "INT",
+                "links": [
+                  29,
+                  31
+                ]
+              },
+              {
+                "localized_name": "布尔值",
+                "name": "BOOL",
+                "type": "BOOLEAN",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "ComfyMathExpression"
+            },
+            "widgets_values": [
+              "a//16*16"
+            ]
+          },
+          {
+            "id": 25,
+            "type": "ComfyMathExpression",
+            "pos": [
+              1000,
+              480
+            ],
+            "size": [
+              400,
+              200
+            ],
+            "flags": {},
+            "order": 17,
+            "mode": 0,
+            "inputs": [
+              {
+                "label": "a",
+                "localized_name": "values.a",
+                "name": "values.a",
+                "type": "FLOAT,INT,BOOLEAN",
+                "link": 50
+              },
+              {
+                "label": "b",
+                "localized_name": "values.b",
+                "name": "values.b",
+                "shape": 7,
+                "type": "FLOAT,INT,BOOLEAN",
+                "link": null
+              }
+            ],
+            "outputs": [
+              {
+                "localized_name": "浮点",
+                "name": "FLOAT",
+                "type": "FLOAT",
+                "links": null
+              },
+              {
+                "localized_name": "整数",
+                "name": "INT",
+                "type": "INT",
+                "links": [
+                  30,
+                  32
+                ]
+              },
+              {
+                "localized_name": "布尔值",
+                "name": "BOOL",
+                "type": "BOOLEAN",
+                "links": null
+              }
+            ],
+            "properties": {
+              "cnr_id": "comfy-core",
+              "ver": "0.26.2",
+              "Node name for S&R": "ComfyMathExpression"
+            },
+            "widgets_values": [
+              "a//16*16"
+            ]
+          }
+        ],
+        "groups": [],
+        "links": [
+          {
+            "id": 26,
+            "origin_id": 2,
+            "origin_slot": 0,
+            "target_id": 3,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 27,
+            "origin_id": 4,
+            "origin_slot": 0,
+            "target_id": 6,
+            "target_slot": 0,
+            "type": "CLIP"
+          },
+          {
+            "id": 28,
+            "origin_id": 5,
+            "origin_slot": 0,
+            "target_id": 6,
+            "target_slot": 1,
+            "type": "CLIP"
+          },
+          {
+            "id": 29,
+            "origin_id": 24,
+            "origin_slot": 1,
+            "target_id": 12,
+            "target_slot": 0,
+            "type": "INT"
+          },
+          {
+            "id": 30,
+            "origin_id": 25,
+            "origin_slot": 1,
+            "target_id": 12,
+            "target_slot": 1,
+            "type": "INT"
+          },
+          {
+            "id": 31,
+            "origin_id": 24,
+            "origin_slot": 1,
+            "target_id": 15,
+            "target_slot": 0,
+            "type": "INT"
+          },
+          {
+            "id": 32,
+            "origin_id": 25,
+            "origin_slot": 1,
+            "target_id": 15,
+            "target_slot": 1,
+            "type": "INT"
+          },
+          {
+            "id": 34,
+            "origin_id": 18,
+            "origin_slot": 0,
+            "target_id": 16,
+            "target_slot": 1,
+            "type": "VAE"
+          },
+          {
+            "id": 35,
+            "origin_id": 13,
+            "origin_slot": 0,
+            "target_id": 17,
+            "target_slot": 0,
+            "type": "NOISE"
+          },
+          {
+            "id": 36,
+            "origin_id": 22,
+            "origin_slot": 0,
+            "target_id": 17,
+            "target_slot": 1,
+            "type": "GUIDER"
+          },
+          {
+            "id": 37,
+            "origin_id": 14,
+            "origin_slot": 0,
+            "target_id": 17,
+            "target_slot": 2,
+            "type": "SAMPLER"
+          },
+          {
+            "id": 38,
+            "origin_id": 15,
+            "origin_slot": 0,
+            "target_id": 17,
+            "target_slot": 3,
+            "type": "SIGMAS"
+          },
+          {
+            "id": 39,
+            "origin_id": 12,
+            "origin_slot": 0,
+            "target_id": 17,
+            "target_slot": 4,
+            "type": "LATENT"
+          },
+          {
+            "id": 40,
+            "origin_id": 17,
+            "origin_slot": 0,
+            "target_id": 19,
+            "target_slot": 0,
+            "type": "LATENT"
+          },
+          {
+            "id": 41,
+            "origin_id": 18,
+            "origin_slot": 0,
+            "target_id": 19,
+            "target_slot": 1,
+            "type": "VAE"
+          },
+          {
+            "id": 43,
+            "origin_id": 19,
+            "origin_slot": 0,
+            "target_id": 21,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 44,
+            "origin_id": 3,
+            "origin_slot": 0,
+            "target_id": 22,
+            "target_slot": 0,
+            "type": "MODEL"
+          },
+          {
+            "id": 45,
+            "origin_id": 6,
+            "origin_slot": 0,
+            "target_id": 22,
+            "target_slot": 1,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 46,
+            "origin_id": 6,
+            "origin_slot": 1,
+            "target_id": 22,
+            "target_slot": 2,
+            "type": "CONDITIONING"
+          },
+          {
+            "id": 47,
+            "origin_id": 16,
+            "origin_slot": 0,
+            "target_id": 22,
+            "target_slot": 3,
+            "type": "RUM_REFERENCE_LATENTS"
+          },
+          {
+            "id": 49,
+            "origin_id": 23,
+            "origin_slot": 0,
+            "target_id": 24,
+            "target_slot": 0,
+            "type": "INT"
+          },
+          {
+            "id": 50,
+            "origin_id": 23,
+            "origin_slot": 1,
+            "target_id": 25,
+            "target_slot": 0,
+            "type": "INT"
+          },
+          {
+            "id": 33,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 16,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 48,
+            "origin_id": -10,
+            "origin_slot": 0,
+            "target_id": 23,
+            "target_slot": 0,
+            "type": "IMAGE"
+          },
+          {
+            "id": 42,
+            "origin_id": 21,
+            "origin_slot": 0,
+            "target_id": -20,
+            "target_slot": 0,
+            "type": "IMAGE"
+          }
+        ],
+        "extra": {}
+      }
+    ]
+  },
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8909996095396207,
+      "offset": [
+        -452.48559302306023,
+        -400.35368190268804
+      ]
+    },
+    "frontendVersion": "1.45.19"
+  },
+  "version": 0.4
+}

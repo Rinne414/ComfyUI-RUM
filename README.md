@@ -10,7 +10,7 @@ RUM 的原始想法、模型和参考推理代码来自 RimoChan/RUM。本仓库
 - 主分支坚持 ComfyUI native 路线，不暴露直接调用 diffusers pipeline 的节点，也不要求用户在 ComfyUI 环境安装 diffusers。
 - 上游 `RimoChan/RUM` 当前默认分支是 `slave`，2026-06-23 的 HEAD 是 `1662918`。本仓库和上游训练仓库没有共同祖先，不能直接 `merge` 或 `cherry-pick`；这里同步的是推理契约、默认参数、权重文件名和验证样本。
 - `examples/diffusers_match_workflow_api.json` 是 T2I 严格验证路径，默认使用上游当前推荐的 `model-checkpoint-1158000.safetensors`、`960x1152`、20 steps、CFG 9、seed 1 示例。
-- `examples/diffusers_match_edit_workflow_api.json` 和 `examples/diffusers_match_edit_workflow_gui.json` 是新增 edit 路径，默认使用 `model-checkpoint-1202000.safetensors` 和参考图输入。
+- `examples/diffusers_match_edit_workflow.json` 是新增 edit 路径，默认使用 `model-checkpoint-1202000.safetensors` 和参考图输入。
 - 新增 `RUMFlux2NativeMatchReferenceEncode` 节点，把 ComfyUI `IMAGE` + `VAE` 编码成专用 `RUM_REFERENCE_LATENTS`；`RUMFlux2DiffusersCFGuider` 增加可选 `reference_latents` 输入，不连接时旧 T2I workflow 行为不变。
 
 这段状态很重要：**主分支不是 diffusers wrapper；严格对齐靠 native diffusers-match workflow。** T2I/edit workflow 已在 `I:\ComfyUI-aki-v1.6\ComfyUI` 生成成功；严格 `pixel_equal=true` 还要求上游 reference 环境、ComfyUI 环境和模型精度完全一致。
@@ -105,8 +105,7 @@ height=1152
 ### Edit diffusers-match workflow
 
 ```text
-examples/diffusers_match_edit_workflow_api.json
-examples/diffusers_match_edit_workflow_gui.json
+examples/diffusers_match_edit_workflow.json
 ```
 
 默认参数：
@@ -128,7 +127,7 @@ height=1200
 在 ComfyUI UI 中使用 edit workflow：
 
 1. 把上游参考图 `img/抓人.jpg` 放到 `ComfyUI/input/rum_reference.jpg`，或者在 `LoadImage` 节点里选择你自己的参考图。
-2. 打开 `examples/diffusers_match_edit_workflow_gui.json`。
+2. 打开 `examples/diffusers_match_edit_workflow.json`。
 3. 确认 `RUMFlux2LoadNativeModel` 选择 `model-checkpoint-1202000.safetensors`。
 4. 确认 `RUMFlux2NativeMatchReferenceEncode` 已连接到 `RUMFlux2DiffusersCFGuider.reference_latents`。
 5. 不要使用 `--cpu-vae` 做严格像素验证；只想生成可用图片时 CPU VAE 也可以运行，但最终 PNG 可能不是逐像素一致。
@@ -290,7 +289,7 @@ The original RUM idea, model, training work, and reference inference code come f
 - The main branch stays native-only: it does not expose a node that directly calls a diffusers pipeline, and users do not need to install diffusers into ComfyUI.
 - Upstream `RimoChan/RUM` currently uses `slave` as the default branch; the 2026-06-23 HEAD is `1662918`. This repository and the upstream training repository do not share common history, so this update syncs inference contracts, defaults, model filenames, and validation samples instead of using `merge` or `cherry-pick`.
 - `examples/diffusers_match_workflow_api.json` is the T2I strict validation path. It now defaults to the current upstream `model-checkpoint-1158000.safetensors`, `960x1152`, 20 steps, CFG 9, seed 1 sample.
-- `examples/diffusers_match_edit_workflow_api.json` and `examples/diffusers_match_edit_workflow_gui.json` add the edit path, defaulting to `model-checkpoint-1202000.safetensors` plus a reference image input.
+- `examples/diffusers_match_edit_workflow.json` add the edit path, defaulting to `model-checkpoint-1202000.safetensors` plus a reference image input.
 - `RUMFlux2NativeMatchReferenceEncode` encodes ComfyUI `IMAGE` + `VAE` into `RUM_REFERENCE_LATENTS`; `RUMFlux2DiffusersCFGuider` now accepts optional `reference_latents`, while disconnected T2I workflows keep the old behavior.
 
 Important: **main is not a diffusers wrapper; exact validation is achieved through the native diffusers-match workflow.** T2I and edit workflows have been manually verified to generate images in `I:\ComfyUI-aki-v1.6\ComfyUI`; strict `pixel_equal=true` still requires the upstream reference environment, the ComfyUI environment, and model precision to match.
@@ -386,8 +385,7 @@ Current upstream T2I prompt/seed samples:
 ### Edit diffusers-match Workflow
 
 ```text
-examples/diffusers_match_edit_workflow_api.json
-examples/diffusers_match_edit_workflow_gui.json
+examples/diffusers_match_edit_workflow.json
 ```
 
 Default parameters:
@@ -409,7 +407,7 @@ height=1200
 To use the edit workflow in the ComfyUI UI:
 
 1. Put upstream `img/抓人.jpg` into `ComfyUI/input/rum_reference.jpg`, or select your own reference image in the `LoadImage` node.
-2. Open `examples/diffusers_match_edit_workflow_gui.json`.
+2. Open `examples/diffusers_match_edit_workflow.json`.
 3. Confirm `RUMFlux2LoadNativeModel` is set to `model-checkpoint-1202000.safetensors`.
 4. Confirm `RUMFlux2NativeMatchReferenceEncode` is connected to `RUMFlux2DiffusersCFGuider.reference_latents`.
 5. Do not use `--cpu-vae` for strict pixel validation. CPU VAE can still generate usable images, but final PNGs may not be pixel-identical.
