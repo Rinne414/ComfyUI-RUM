@@ -40,7 +40,16 @@ class RUMFlux2LoadNativeModel:
         return {
             "required": {
                 "rum_checkpoint_name": (_diffusion_model_list(),),
-                "base_text_tokens": ("INT", {"default": 200, "min": 1, "max": 4096, "step": 1}),
+                "base_text_tokens": (
+                    "INT",
+                    {
+                        "default": 200,
+                        "min": 1,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "必须与下游 text encode / match patch 节点的 base_text_tokens 一致。diffusers-match workflow 使用 200。",
+                    },
+                ),
             },
             "optional": {
                 "rum_checkpoint_path": (
@@ -74,7 +83,16 @@ class RUMFlux2ApplyModelPatch:
             "required": {
                 "model": ("MODEL",),
                 "rum_checkpoint_name": (_diffusion_model_list(),),
-                "base_text_tokens": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
+                "base_text_tokens": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 1,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "必须与下游 conditioning / match patch 节点的 base_text_tokens 一致。原生 512-token workflow 用 512，diffusers-match 用 200。",
+                    },
+                ),
                 "strict": ("BOOLEAN", {"default": True}),
             },
             "optional": {
@@ -116,7 +134,16 @@ class RUMFlux2CombineConditioning:
                 "sdxl_conditioning": ("CONDITIONING",),
                 "guidance": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                 "use_guidance_embedding": ("BOOLEAN", {"default": False}),
-                "base_text_tokens": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
+                "base_text_tokens": (
+                    "INT",
+                    {
+                        "default": 512,
+                        "min": 1,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "必须与模型加载/patch 节点的 base_text_tokens 一致，否则会得到损坏的画面。",
+                    },
+                ),
                 "extra_text_tokens": ("INT", {"default": 77, "min": 1, "max": 512, "step": 1}),
                 "sdxl_clip_width": ("INT", {"default": 2048, "min": 1, "max": 8192, "step": 1}),
                 "use_sdxl_extra": ("BOOLEAN", {"default": True}),
@@ -198,31 +225,6 @@ def _resolve_qwen_text_model(clip):
     return text_model
 
 
-def _encode_qwen_with_layers(clip, text: str, *, min_length: int, layers: str):
-    parsed = _parse_layers(layers)
-    text_model = _resolve_qwen_text_model(clip)
-    old_layer = text_model.layer
-    old_layer_idx = text_model.layer_idx
-    old_options_default = getattr(text_model, "options_default", None)
-    old_clip_layer_idx = getattr(clip, "layer_idx", None)
-
-    try:
-        projected_pooled = old_options_default[2] if old_options_default is not None and len(old_options_default) > 2 else True
-        text_model.layer = parsed
-        text_model.layer_idx = None
-        if old_options_default is not None:
-            text_model.options_default = (parsed, None, projected_pooled)
-        clip.layer_idx = None
-        tokens = clip.tokenize(text, min_length=min_length)
-        return clip.encode_from_tokens_scheduled(tokens), parsed
-    finally:
-        text_model.layer = old_layer
-        text_model.layer_idx = old_layer_idx
-        if old_options_default is not None:
-            text_model.options_default = old_options_default
-        clip.layer_idx = old_clip_layer_idx
-
-
 def _clone_qwen_clip_with_layers(clip, layers: str):
     parsed = _parse_layers(layers)
     patched = clip.clone()
@@ -242,7 +244,16 @@ class RUMFlux2NativeMatchTextEncode:
                 "negative_prompt": ("STRING", {"multiline": True, "default": ""}),
                 "guidance": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                 "use_guidance_embedding": ("BOOLEAN", {"default": False}),
-                "base_text_tokens": ("INT", {"default": 200, "min": 1, "max": 4096, "step": 1}),
+                "base_text_tokens": (
+                    "INT",
+                    {
+                        "default": 200,
+                        "min": 1,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "必须与 RUMFlux2LoadNativeModel 和 RUMFlux2DiffusersMatchModelPatch 的 base_text_tokens 一致。",
+                    },
+                ),
                 "extra_text_tokens": ("INT", {"default": 77, "min": 1, "max": 512, "step": 1}),
                 "sdxl_clip_width": ("INT", {"default": 2048, "min": 1, "max": 8192, "step": 1}),
                 "qwen_layers": ("STRING", {"default": "10,20,30", "multiline": False}),
@@ -518,7 +529,16 @@ class RUMFlux2DiffusersMatchModelPatch:
         return {
             "required": {
                 "model": ("MODEL",),
-                "base_text_tokens": ("INT", {"default": 200, "min": 1, "max": 4096, "step": 1}),
+                "base_text_tokens": (
+                    "INT",
+                    {
+                        "default": 200,
+                        "min": 1,
+                        "max": 4096,
+                        "step": 1,
+                        "tooltip": "必须与 RUMFlux2LoadNativeModel 和 text encode 节点的 base_text_tokens 一致；不一致会直接报错。",
+                    },
+                ),
                 "extra_text_tokens": ("INT", {"default": 77, "min": 1, "max": 512, "step": 1}),
                 "disable_guidance": ("BOOLEAN", {"default": True}),
             }

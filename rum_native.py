@@ -157,6 +157,25 @@ class RUMDiffusersMatchTokenPolicy:
         extra = cross_attn[:, -self.extra_text_tokens :]
         return torch.cat([base, extra], dim=1)
 
+    def validate_conditioning_meta(self, branch: str | None, base_tokens, extra_tokens) -> None:
+        if branch == "negative":
+            return
+        mismatches = []
+        if base_tokens is not None and int(base_tokens) != self.base_text_tokens:
+            mismatches.append(
+                f"base_text_tokens: conditioning={int(base_tokens)}, match patch={self.base_text_tokens}"
+            )
+        if extra_tokens is not None and int(extra_tokens) != self.extra_text_tokens:
+            mismatches.append(
+                f"extra_text_tokens: conditioning={int(extra_tokens)}, match patch={self.extra_text_tokens}"
+            )
+        if mismatches:
+            raise ValueError(
+                "RUM conditioning 与 RUMFlux2DiffusersMatchModelPatch 的 token 配置不一致（会得到损坏的画面而不是报错）："
+                + "; ".join(mismatches)
+                + "。请把 text encode / combine 节点和 match patch 的 base_text_tokens/extra_text_tokens 设成相同值。"
+            )
+
 
 class RUMDiffusersMatchExtraConds:
     def __init__(
@@ -187,12 +206,14 @@ class RUMDiffusersMatchExtraConds:
             branch = kwargs.get("prompt_type")
         if branch is None:
             branch = kwargs.get("transformer_options", {}).get("rum_diffusers_cfg_branch")
+        self.token_policy.validate_conditioning_meta(
+            branch,
+            kwargs.get("rum_base_text_tokens"),
+            kwargs.get("rum_extra_text_tokens"),
+        )
         selected = self.token_policy.select(cross_attn, branch)
 
-        try:
-            import comfy.conds
-        except Exception:
-            return output
+        import comfy.conds
 
         output = output.copy()
         output["c_crossattn"] = comfy.conds.CONDRegular(selected)
@@ -221,6 +242,19 @@ class RUMReferenceLatentsCond:
         return [sum(int(latent.numel()) for latent in latents)]
 
 
+def ensure_rum_projection_matches_base_tokens(projection, base_text_tokens: int) -> None:
+    expected = getattr(projection, "base_text_tokens", None)
+    if expected is None:
+        return
+    if int(expected) != int(base_text_tokens):
+        raise ValueError(
+            "RUM diffusers-match base_text_tokens 与模型里的 RUM dual projection 不一致："
+            f"model={int(expected)}, match patch={int(base_text_tokens)}。"
+            "请把 RUMFlux2LoadNativeModel/RUMFlux2ApplyModelPatch 和 "
+            "RUMFlux2DiffusersMatchModelPatch 的 base_text_tokens 设成同一个值。"
+        )
+
+
 def apply_diffusers_match_model_wrapper(
     model,
     *,
@@ -231,6 +265,9 @@ def apply_diffusers_match_model_wrapper(
     import comfy.patcher_extension
 
     patched = model.clone()
+    projection = getattr(patched, "object_patches", {}).get(f"{_DIFFUSION_PREFIX}txt_in")
+    if projection is not None:
+        ensure_rum_projection_matches_base_tokens(projection, base_text_tokens)
     patched.rum_diffusers_match_config = {
         "base_text_tokens": int(base_text_tokens),
         "extra_text_tokens": int(extra_text_tokens),
@@ -331,17 +368,6 @@ def patchify_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
     return latents.reshape(batch_size, channels * 4, height // 2, width // 2)
 
 
-def unpatchify_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
-    if latents.ndim != 4:
-        raise ValueError(f"FLUX.2 patchified latent 必须是 4D tensor，当前形状是 {tuple(latents.shape)}。")
-    batch_size, channels, height, width = latents.shape
-    if channels % 4 != 0:
-        raise ValueError(f"FLUX.2 patchified latent channel 必须能被 4 整除，当前形状是 {tuple(latents.shape)}。")
-    latents = latents.reshape(batch_size, channels // 4, 2, 2, height, width)
-    latents = latents.permute(0, 1, 4, 2, 5, 3)
-    return latents.reshape(batch_size, channels // 4, height * 2, width * 2)
-
-
 def pack_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
     if latents.ndim != 4:
         raise ValueError(f"FLUX.2 latent pack 需要 4D tensor，当前形状是 {tuple(latents.shape)}。")
@@ -361,8 +387,8 @@ def prepare_diffusers_latent_ids(
     t = torch.arange(1)
     h = torch.arange(height)
     w = torch.arange(width)
-    l = torch.arange(1)
-    latent_ids = torch.cartesian_prod(t, h, w, l)
+    l_index = torch.arange(1)
+    latent_ids = torch.cartesian_prod(t, h, w, l_index)
     return latent_ids.unsqueeze(0).expand(batch_size, -1, -1).to(device=device, dtype=dtype)
 
 
@@ -894,10 +920,6 @@ def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
             reference_latents=reference_latents,
         )
 
-    if len(model_output) > 1 and not torch.is_tensor(model_output):
-        from comfy import utils
-
-        model_output, _ = utils.pack_latents(model_output)
     return model_output
 
 
@@ -997,6 +1019,13 @@ def create_diffusers_cfg_guider(model, positive, negative, cfg: float, reference
                 )
                 return negative_out + self.cfg * (positive_out - negative_out)
 
+            if reference_latents is not None:
+                raise ValueError(
+                    "RUM reference_latents 只支持 RUM FLUX.2 Diffusers Euler Sampler 的 raw-noise 路径；"
+                    "请在 SamplerCustomAdvanced 里使用 RUMFlux2DiffusersEulerSampler，"
+                    "或断开 reference_latents 后再用普通 sampler。"
+                )
+
             positive_out = comfy.samplers.calc_cond_batch(
                 self.inner_model,
                 [positive_cond],
@@ -1080,11 +1109,14 @@ class RUMDiffusersEulerSampler:
             step_model_options["rum_diffusers_return_raw_noise"] = True
             noise_pred = model_wrap(x, sigma_in, model_options=step_model_options, seed=seed)
 
+            denoised = None
+            if callback is not None:
+                denoised = x.float() - noise_pred.float() * sigma.to(device=x.device, dtype=torch.float32)
+
             dt = (sigma_next - sigma).to(device=x.device, dtype=torch.float32)
             x = (x.float() + dt * noise_pred).to(dtype=noise_pred.dtype)
 
             if callback is not None:
-                denoised = x.float() - noise_pred.float() * sigma.to(device=x.device, dtype=torch.float32)
                 callback(i, denoised, x, total_steps)
 
         return model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], x.float())
@@ -1123,21 +1155,6 @@ def _diffusers_compute_empirical_mu(*, image_seq_len: int, num_steps: int) -> fl
     a = (m_200 - m_10) / 190.0
     b = m_200 - 200.0 * a
     return float(a * num_steps + b)
-
-
-def _diffusers_time_shift_exponential(mu: float, sigma: float, timesteps: torch.Tensor) -> torch.Tensor:
-    return torch.exp(torch.tensor(mu, dtype=timesteps.dtype, device=timesteps.device)) / (
-        torch.exp(torch.tensor(mu, dtype=timesteps.dtype, device=timesteps.device))
-        + (1 / timesteps - 1) ** sigma
-    )
-
-
-
-def _unpatchify_flux2_latents(latents: torch.Tensor) -> torch.Tensor:
-    batch_size, channels, height, width = latents.shape
-    latents = latents.reshape(batch_size, channels // 4, 2, 2, height, width)
-    latents = latents.permute(0, 1, 4, 2, 5, 3)
-    return latents.reshape(batch_size, channels // 4, height * 2, width * 2)
 
 
 def _resolve_vae_first_stage(vae):
@@ -1205,7 +1222,12 @@ def decode_flux2_native_match_vae_latent(vae, samples):
 
     latent = samples["samples"] if isinstance(samples, dict) else samples
     if latent.is_nested:
-        latent = latent.unbind()[0]
+        parts = latent.unbind()
+        if len(parts) != 1:
+            raise ValueError(
+                f"RUM native-match VAE decode 暂不支持 nested batch>1（当前 {len(parts)} 个 latent）；请逐张 decode。"
+            )
+        latent = parts[0]
 
     first_stage = _resolve_vae_first_stage(vae)
     if not hasattr(first_stage, "bn"):
@@ -1382,7 +1404,9 @@ def _flux2_diffusers_to_comfy_key_map(
     hidden_size: int,
     output_prefix: str,
 ):
-    identity = lambda tensor: tensor
+    def identity(tensor: torch.Tensor) -> torch.Tensor:
+        return tensor
+
     key_map = {}
 
     for index in range(double_blocks):
@@ -1598,10 +1622,16 @@ def encode_comfy_qwen3_hf_semantics(
     causal_mask = _exact_qwen_causal_mask(attention_mask, dtype=hidden.dtype, device=device)
 
     layer_set = set(layers)
+    needs_final_norm = len(model.layers) in layer_set
+    last_hidden_layer = max((layer for layer in layer_set if layer < len(model.layers)), default=-1)
     collected_by_layer: dict[int, torch.Tensor] = {}
     for index, layer in enumerate(model.layers):
         if index in layer_set:
             collected_by_layer[index] = hidden.clone()
+            # hidden_states[i] is the input of layer i, so the remaining layers cannot
+            # change any requested value; skip them unless the final norm is requested.
+            if index == last_hidden_layer and not needs_final_norm:
+                break
 
         residual = hidden
         hidden = _exact_qwen_rms_norm(layer.input_layernorm, hidden)
@@ -1729,6 +1759,7 @@ def _encode_clip_text_hf_semantics(text_model, input_ids: torch.Tensor, *, layer
 
         if index == layer_index:
             collected = hidden.clone()
+            break
 
     if collected is None:
         raise ValueError(f"SDXL CLIP layer_index 超出范围：{layer_index}。")
@@ -1866,15 +1897,9 @@ def _should_use_sdxl_teacher_hf_exact() -> bool:
             f"RUM strict SDXL teacher HF exact path 无法定位 ComfyUI text_encoders 目录；"
             f"请修正 ComfyUI folder_paths 或 unset {_SDXL_TEACHER_HF_EXACT_ENV}。"
         )
-    if should_use_sdxl_teacher_hf_exact(
-        text_encoder_dir,
-        cuda_available=torch.cuda.is_available(),
-        transformers_available=importlib.util.find_spec("transformers") is not None,
-        exact_enabled=True,
-    ):
-        return True
+    # Raises with the precise reason (missing vs ambiguous) unless exactly one teacher HF pair exists.
     _find_sdxl_teacher_dirs(text_encoder_dir)
-    return False
+    return True
 
 
 def _load_sdxl_teacher_hf_pair(device: torch.device, dtype: torch.dtype):
@@ -1901,6 +1926,8 @@ def _load_sdxl_teacher_hf_pair(device: torch.device, dtype: torch.dtype):
     tokenizer_l = CLIPTokenizer.from_pretrained(str(tokenizer_dir))
     tokenizer_g = CLIPTokenizer.from_pretrained(str(tokenizer_dir), pad_token="!")
     cached = (clip_l, clip_g, tokenizer_l, tokenizer_g)
+    # Keep at most one teacher pair resident; the strict path is opt-in and the models are large.
+    _SDXL_TEACHER_CACHE.clear()
     _SDXL_TEACHER_CACHE[cache_key] = cached
     return cached
 
