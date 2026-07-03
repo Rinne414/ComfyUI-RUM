@@ -18,6 +18,7 @@ from rum_native import (
     convert_rum_diffusers_to_comfy,
     crop_noise_to_latent_tokens,
     diffusers_flux2_sigmas,
+    diffusers_match_timestep,
     ensure_rum_projection_matches_base_tokens,
     pack_flux2_latents,
     pack_rum_reference_latents,
@@ -429,3 +430,16 @@ def test_convert_rum_checkpoint_merges_qkv_and_swaps_adaln():
     )
     assert converted["img_in.weight"].shape == (hidden, 8)
     assert converted["txt_in.weight"].shape == (hidden, 3)
+
+
+def test_diffusers_match_timestep_reproduces_reference_double_rounding():
+    sigmas = diffusers_flux2_sigmas(steps=20, width=960, height=1152)[:-1]
+
+    unified = diffusers_match_timestep(sigmas, torch.bfloat16)
+    reference = ((sigmas.to(torch.float32) * 1000.0).to(torch.bfloat16) / 1000.0).to(torch.bfloat16)
+
+    assert unified.dtype == torch.bfloat16
+    assert torch.equal(unified, reference)
+    # forward_orig embeds 1000*t in model dtype; on the standard schedule this
+    # round-trips exactly to the direct bf16(sigma*1000) the wrapper used before.
+    assert torch.equal(1000.0 * unified, (sigmas.to(torch.float32) * 1000.0).to(torch.bfloat16))

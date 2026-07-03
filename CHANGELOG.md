@@ -11,6 +11,7 @@
 - Package import no longer falls back to ComfyUI's own top-level `nodes` module when the relative import fails inside a package context.
 - Exact Qwen/CLIP text encoders stop at the last requested hidden-state layer (Qwen text encode skips 6 of 36 layers with the default `10,20,30`), with bit-identical outputs.
 - The strict SDXL teacher HF cache now keeps at most one loaded model pair.
+- Unified the diffusers timestep semantics into a single `diffusers_match_timestep` helper shared by the raw-noise path and the model-patch wrapper; validated pixel-identical on live T2I/edit/wrapper-path runs.
 - Removed dead code (`unpatchify` helpers, unused Qwen layer-override encode, unreachable branches), fixed ruff findings, added ruff to CI, refreshed stale install/download hints, and expanded unit tests (sigma snapshot, checkpoint key conversion, token-policy validation).
 
 ## 0.2.8

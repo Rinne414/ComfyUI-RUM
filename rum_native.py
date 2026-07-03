@@ -817,6 +817,13 @@ def _call_diffusers_match_forward_orig(
     return model_output.permute(0, 2, 1).reshape(batch_size, model_output.shape[-1], height, width)
 
 
+def diffusers_match_timestep(sigma: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
+    # Diffusers Flux2Klein hands the transformer t = cast(sigma*1000)/1000 in model dtype;
+    # the transformer's embedding then multiplies by 1000 again in that dtype. The double
+    # rounding is part of the reference numerics, so both RUM paths must share it.
+    return ((sigma.to(torch.float32) * 1000.0).to(dtype) / 1000.0).to(dtype)
+
+
 class RUMDiffusersTimestepWrapper:
     def __call__(self, apply_model, x, timestep, context, *args, **kwargs):
         diffusion_model = apply_model.class_obj
@@ -827,8 +834,8 @@ class RUMDiffusersTimestepWrapper:
             def forward(self, ignored_embedding):
                 from comfy.ldm.flux.layers import timestep_embedding
 
-                diffusers_timestep = (timestep.to(torch.float32) * 1000.0).to(dtype=diffusion_dtype)
-                embedding = timestep_embedding(diffusers_timestep, 256, time_factor=1.0).to(
+                diffusers_timestep = diffusers_match_timestep(timestep, diffusion_dtype)
+                embedding = timestep_embedding(diffusers_timestep, 256).to(
                     device=diffusers_timestep.device,
                     dtype=diffusion_dtype,
                 )
@@ -906,7 +913,7 @@ def _predict_raw_noise(model, x, timestep, cond, model_options, branch: str):
 
     guidance = _condition_tensor(conditioning["guidance"]) if "guidance" in conditioning else None
     reference_latents = _condition_reference_latents(conditioning["rum_reference_latents"]) if "rum_reference_latents" in conditioning else None
-    timestep_in = ((timestep.to(torch.float32) * 1000.0).to(diffusion_dtype) / 1000.0).to(diffusion_dtype)
+    timestep_in = diffusers_match_timestep(timestep, diffusion_dtype)
 
     with torch.inference_mode(), _diffusers_match_forward_patch(diffusion_model):
         model_output = _call_diffusers_match_forward_orig(

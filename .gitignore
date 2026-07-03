@@ -50,3 +50,4 @@ REVIEW*.md
 *_prompt_id.txt
 comparison_pair*.png
 diff_pair*.png
+.validation_*/
