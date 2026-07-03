@@ -43,3 +43,10 @@ Thumbs.db
 .trace_*.py
 .run_diffusers_reference.py
 .rum_diffusers_reference_impl.py
+
+# Local validation artifacts and review notes.
+proof/
+REVIEW*.md
+*_prompt_id.txt
+comparison_pair*.png
+diff_pair*.png

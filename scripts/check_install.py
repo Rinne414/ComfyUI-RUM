@@ -24,7 +24,6 @@ EXPECTED_MODELS = {
 }
 
 OPTIONAL_WORKFLOW_FILES = {
-    "normal native workflow": ["clip_l.safetensors", "clip_g.safetensors"],
     "diffusers-match T2I/edit workflow": [
         "waiNSFWIllustrious_v140_clip_l.safetensors",
         "waiNSFWIllustrious_v140_clip_g.safetensors",

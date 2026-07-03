@@ -139,7 +139,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--include-sdxl-clip",
         action="store_true",
-        help="Also download generic clip_l.safetensors and clip_g.safetensors for the normal native workflow.",
+        help="Also download generic clip_l.safetensors and clip_g.safetensors for custom native workflows.",
     )
     parser.add_argument(
         "--include-teacher-clip",
@@ -196,9 +196,12 @@ def selected_files(args: argparse.Namespace) -> list[dict[str, str]]:
 def print_workflow_hint(args: argparse.Namespace) -> None:
     print("\nWorkflow hints:")
     if args.include_sdxl_clip or args.all:
-        print("- examples/basic_workflow_api.json can use clip_l.safetensors + clip_g.safetensors.")
+        print(
+            "- Generic clip_l.safetensors + clip_g.safetensors downloaded. They are only for custom native workflows; "
+            "the shipped diffusers-match workflows use the waiNSFWIllustrious teacher CLIP files."
+        )
     else:
-        print("- For examples/basic_workflow_api.json, rerun with --include-sdxl-clip.")
+        print("- Generic clip_l/clip_g are optional; rerun with --include-sdxl-clip only if a custom native workflow needs them.")
     if args.include_teacher_clip or args.all:
         print(
             "- examples/diffusers_match_workflow*.json can use "
@@ -211,9 +214,9 @@ def print_workflow_hint(args: argparse.Namespace) -> None:
     else:
         print("- For strict pixel-exact text encoding only, rerun with --include-teacher-hf-exact and set RUM_SDXL_TEACHER_HF_EXACT=1.")
     if args.include_edit_checkpoint or args.all:
-        print("- examples/diffusers_match_edit_workflow_api.json can use model-checkpoint-1202000.safetensors.")
+        print("- examples/diffusers_match_edit_workflow.json can use model-checkpoint-1202000.safetensors.")
     else:
-        print("- For examples/diffusers_match_edit_workflow_api.json, rerun with --include-edit-checkpoint.")
+        print("- For examples/diffusers_match_edit_workflow.json, rerun with --include-edit-checkpoint.")
 
 
 def main() -> None:
