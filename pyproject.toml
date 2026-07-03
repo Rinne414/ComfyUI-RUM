@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-rum"
-version = "0.2.8"
+version = "0.2.9"
 description = "Native ComfyUI adapter nodes for RUM FLUX.2-Klein with extra SDXL CLIP conditioning."
 requires-python = ">=3.10"
 readme = "README.md"
