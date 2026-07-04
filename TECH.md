@@ -10,7 +10,7 @@
 
 - 主分支坚持 ComfyUI native 路线，不暴露直接调用 diffusers pipeline 的节点，也不要求用户在 ComfyUI 环境安装 diffusers。
 - 上游 `RimoChan/RUM` 当前默认分支是 `slave`，2026-06-23 的 HEAD 是 `1662918`。本仓库和上游训练仓库没有共同祖先，不能直接 `merge` 或 `cherry-pick`；这里同步的是推理契约、默认参数、权重文件名和验证样本。
-- `examples/diffusers_match_workflow_api.json` 是 T2I 严格验证路径，默认使用上游当前推荐的 `model-checkpoint-1158000.safetensors`、`960x1152`、20 steps、CFG 9、seed 1 示例。
+- `examples/validation/diffusers_match_workflow_api.json` 是 T2I 严格验证路径（API 格式，供 `scripts/queue_workflow.py` / `scripts/run_comfy_prompt.py` POST 到 `/prompt` 做无头验证；不放在 `examples/` 顶层，避免一般使用者误用），默认使用上游当前推荐的 `model-checkpoint-1158000.safetensors`、`960x1152`、20 steps、CFG 9、seed 1 示例。
 - `examples/diffusers_match_edit_workflow.json` 是 edit 路径，默认使用 `model-checkpoint-1202000.safetensors` 和参考图输入。
 - `RUMFlux2NativeMatchReferenceEncode` 节点把 ComfyUI `IMAGE` + `VAE` 编码成专用 `RUM_REFERENCE_LATENTS`；`RUMFlux2DiffusersCFGuider` 增加可选 `reference_latents` 输入，不连接时旧 T2I workflow 行为不变。
 - T2I/edit workflow 已在 `I:\ComfyUI-aki-v1.6\ComfyUI` 生成成功；严格 `pixel_equal=true` 还要求上游 reference 环境、ComfyUI 环境和模型精度完全一致。
@@ -144,7 +144,7 @@ Key point: **main is not a diffusers wrapper; exact validation is achieved throu
 
 - The main branch stays native-only: it does not expose a node that directly calls a diffusers pipeline, and users do not need to install diffusers into ComfyUI.
 - Upstream `RimoChan/RUM` currently uses `slave` as the default branch; the 2026-06-23 HEAD is `1662918`. This repository and the upstream training repository do not share common history, so this update syncs inference contracts, defaults, model filenames, and validation samples instead of using `merge` or `cherry-pick`.
-- `examples/diffusers_match_workflow_api.json` is the T2I strict validation path. It defaults to the current upstream `model-checkpoint-1158000.safetensors`, `960x1152`, 20 steps, CFG 9, seed 1 sample.
+- `examples/validation/diffusers_match_workflow_api.json` is the T2I strict validation path (API format, POSTed to `/prompt` by `scripts/queue_workflow.py` / `scripts/run_comfy_prompt.py` for headless validation; kept out of the top-level `examples/` folder so normal users don't open it by mistake). It defaults to the current upstream `model-checkpoint-1158000.safetensors`, `960x1152`, 20 steps, CFG 9, seed 1 sample.
 - `examples/diffusers_match_edit_workflow.json` is the edit path, defaulting to `model-checkpoint-1202000.safetensors` plus a reference image input.
 - `RUMFlux2NativeMatchReferenceEncode` encodes ComfyUI `IMAGE` + `VAE` into `RUM_REFERENCE_LATENTS`; `RUMFlux2DiffusersCFGuider` accepts optional `reference_latents`, while disconnected T2I workflows keep the old behavior.
 - T2I and edit workflows have been manually verified to generate images in `I:\ComfyUI-aki-v1.6\ComfyUI`; strict `pixel_equal=true` still requires the upstream reference environment, the ComfyUI environment, and model precision to match.

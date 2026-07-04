@@ -70,12 +70,11 @@ python scripts/check_install.py --comfy-root /path/to/ComfyUI
 
 ## 使用 Workflow
 
-仓库提供 T2I 和 edit 两组 workflow。API JSON 适合自动化验证，GUI JSON 适合直接在 ComfyUI UI 里打开。
+仓库提供 T2I 和 edit 两组 workflow，在 ComfyUI UI 里打开 GUI JSON 即可使用。（自动化验证用的 API 格式 workflow 放在 `examples/validation/`，一般使用者用不到，细节见 [TECH.md](TECH.md)。）
 
 ### T2I workflow
 
 ```text
-examples/diffusers_match_workflow_api.json
 examples/diffusers_match_workflow_gui.json
 ```
 
@@ -226,12 +225,11 @@ python scripts/check_install.py --comfy-root /path/to/ComfyUI
 
 ## Use the Workflows
 
-The repository ships T2I and edit workflows. API JSON files are for automated validation; GUI JSON files can be opened directly in the ComfyUI UI.
+The repository ships T2I and edit workflows. Open the GUI JSON in the ComfyUI UI to use them. (The API-format workflow used for automated validation lives in `examples/validation/`; normal users do not need it — see [TECH.md](TECH.md).)
 
 ### T2I workflow
 
 ```text
-examples/diffusers_match_workflow_api.json
 examples/diffusers_match_workflow_gui.json
 ```
 
