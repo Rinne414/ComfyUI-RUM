@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-rum"
-version = "0.2.9"
+version = "0.2.10"
 description = "Native ComfyUI adapter nodes for RUM FLUX.2-Klein with extra SDXL CLIP conditioning."
 requires-python = ">=3.10"
 readme = "README.md"
@@ -15,11 +15,11 @@ classifiers = [
 dependencies = { file = ["requirements.txt"] }
 
 [project.urls]
-Repository = "https://github.com/peter119lee/ComfyUI-RUM"
-Documentation = "https://github.com/peter119lee/ComfyUI-RUM#readme"
-"Bug Tracker" = "https://github.com/peter119lee/ComfyUI-RUM/issues"
+Repository = "https://github.com/Rinne414/ComfyUI-RUM"
+Documentation = "https://github.com/Rinne414/ComfyUI-RUM#readme"
+"Bug Tracker" = "https://github.com/Rinne414/ComfyUI-RUM/issues"
 "Upstream RUM" = "https://github.com/RimoChan/RUM"
-"Diffusers Exact Reference Branch" = "https://github.com/peter119lee/ComfyUI-RUM/tree/codex/diffusers-exact-reference-node"
+"Diffusers Exact Reference Branch" = "https://github.com/Rinne414/ComfyUI-RUM/tree/codex/diffusers-exact-reference-node"
 
 [tool.comfy]
 PublisherId = "peter119lee"

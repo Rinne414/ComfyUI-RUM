@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.10
+
+- Maintenance: the GitHub account renamed peter119lee -> Rinne414. The
+  publish workflow now gates on the repository fork flag (an owner-string
+  guard would silently skip every publish after the rename) and the
+  repository links point at the new slug. No node behavior changed.
+
 ## 0.2.9
 
 - Adopted upstream PR #5 (RimoChan): the edit example is now a single `examples/diffusers_match_edit_workflow.json`.
