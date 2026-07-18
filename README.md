@@ -75,7 +75,7 @@ python scripts/check_install.py --comfy-root /path/to/ComfyUI
 ### T2I workflow
 
 ```text
-examples/diffusers_match_workflow_gui.json
+examples/diffusers_match_t2i_workflow.json
 ```
 
 默认参数：
@@ -230,7 +230,7 @@ The repository ships T2I and edit workflows. Open the GUI JSON in the ComfyUI UI
 ### T2I workflow
 
 ```text
-examples/diffusers_match_workflow_gui.json
+examples/diffusers_match_t2i_workflow.json
 ```
 
 Default parameters:
